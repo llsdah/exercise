@@ -1,4 +1,4 @@
-package org.example.linear.practice.array;
+package org.example.linear.list.practice.array;
 
 /**
  * 배열에서 타켓에 해당하는 값의 인덱스를 출력하는것

@@ -1,4 +1,4 @@
-package org.example.linear.practice.array;
+package org.example.linear.list.practice.array;
 
 /**
  * 배열 중복값을 제거한 새배력을 만드시오

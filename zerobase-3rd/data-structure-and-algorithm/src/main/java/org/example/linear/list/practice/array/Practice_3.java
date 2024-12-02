@@ -1,4 +1,4 @@
-package org.example.linear.practice.array;
+package org.example.linear.list.practice.array;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;

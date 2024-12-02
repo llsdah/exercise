@@ -1,4 +1,4 @@
-package org.example.linear.practice.linkedlist;
+package org.example.linear.list.practice.linkedlist;
 
 /**
  * 원형 연결리스트

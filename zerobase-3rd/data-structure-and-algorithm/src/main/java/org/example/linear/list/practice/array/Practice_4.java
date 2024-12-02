@@ -1,4 +1,4 @@
-package org.example.linear.practice.array;
+package org.example.linear.list.practice.array;
 
 /**
  * 배역의 peek 값 모두를 출력

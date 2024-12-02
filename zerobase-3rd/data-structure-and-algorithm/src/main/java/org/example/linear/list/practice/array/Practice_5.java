@@ -1,4 +1,4 @@
-package org.example.linear.practice.array;
+package org.example.linear.list.practice.array;
 
 /**
  * 배열 오름차순 출력

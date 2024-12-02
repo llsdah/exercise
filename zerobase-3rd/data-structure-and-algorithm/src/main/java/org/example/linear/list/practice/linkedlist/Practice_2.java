@@ -1,4 +1,4 @@
-package org.example.linear.practice.linkedlist;
+package org.example.linear.list.practice.linkedlist;
 
 /**
  * 양방향 림크드 리스트

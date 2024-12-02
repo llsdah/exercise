@@ -1,4 +1,4 @@
-package org.example.linear.practice.array;
+package org.example.linear.list.practice.array;
 
 /**
  * 배열의 모든데이터에 대해 짝수 홀수 데이터 평균을 출력한다

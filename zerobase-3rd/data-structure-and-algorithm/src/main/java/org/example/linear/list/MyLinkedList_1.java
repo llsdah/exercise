@@ -1,4 +1,4 @@
-package org.example.linear;
+package org.example.linear.list.practice;
 
 /**
  * 연결리스트
