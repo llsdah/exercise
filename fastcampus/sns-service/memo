@@ -1,0 +1,71 @@
+sns application 만들기
+- 대규포 트래픽 고려
+- 댓글, 좋아요, 알림
+- java, spring boot, heroku(postre), git, redis, kafka, gradle,
+- 프로젝트 구성시 고려사항 생각합니다.
+- 강의 기술
+    java 11, springboot 2.6.7, spring JAP, spring security, gradle, lombok, junit5, kafka, postgre, redis, heroku, sse
+
+
+* 구현 진행 절차
+1. sns 기초
+- 회원가입 로그인, 포스트 CRUD
+
+2. develop
+- 좋아요, 댓글, 알림
+
+3. 대규포 트래픽 고려
+- Caching 추가
+- server side event 적용
+- 비동기이용 데이터 처리
+
+* 요구사항 분석하기
+1. 화면기획서
+- 서비스 전체 기획서 조회 : 어떤 API가 필요한지 확인을 수행합니다.
+ex)
+- Feed Page : 제목, 작성자, 본문의 정보가 필요합니다.
+    -> 리스트형 페이지 : 페이징 처리 고려 및 화면변경? 정렬기준이 무엇인가? 처음에 몇개 데이터가 필요한가?
+    -> Post List Api : 모든 user의 글을 모와서 보여주는 API, Pagind 정렬 필요, 제목 작성자 본문
+
+- Write Post Page : 제목과 본문작성 가능
+    -> Post Create API : 제목과 본문 작성 으로 게시글 작성
+- Sign Up page : username, password 가입
+    -> User Sign Up API : user name + password 이용 회원가입
+- Sign IN page : username, password 로그인
+    -> User Sign In API : user name + password 이용 로그인
+- My POst Page : 제목, 작성자, 본문의 정보 필요, 수정 및 삭제버튼 존재
+    -> My post API : 로그인 User 글 보여주는 API, Paging 및 정렬 필요, 제목+작성자+본문
+    -> Post Delete API : 포스트 삭제
+    -> Post Modify API : 제목과 본문 수정
+
+* 아키텍처 설계
+- simple SNS 서버 필요
+    -> SpringBoot Application [ JWT Authorization ] <- request + Database
+- Database : 회원 및 게시글의 관계가 있기에 관계형으로 구현
+- 인증 및 인가
+    -> 인증 Autentication : 로그인 혹은 회원가입으로 내가 누구인지 보여주는것
+    -> 인가 Authorization : 내가 권한이 있는지 확인
+        - JWT
+
++ a Database 종류
+- apache Hbase + cassandra = 대용량 데이터를 위한 데이터베이스
+- duid = 데이터분석에 용이한 데이터베이스
+- Postgre mysql = 관계형 데이터베이스
+- Redis, mongeDB, CouchDB : 비관계형 데이터베이스
+- RDBMS 관계형데이터베이스
+    - 데이터 행과 열과 관계의 테이블 형태 저장 -> 수형확장에 불리
+    - 고정된 스키마 가지고 있다 -> 질의 응답 가능
+- NOSQL 비관계형 데이터베이스
+    - 관계가 아닌 저장에 핵심
+    - key - value => 유연성이 뛰어남
+    - 다수 업데이트가 발생시 성능에서 불리 -> 규격이 아닌 통으로 저장해서
+- 데이터베이스 이해도 및 reference 필요
+
+
+
+
+
+
+
+
+
