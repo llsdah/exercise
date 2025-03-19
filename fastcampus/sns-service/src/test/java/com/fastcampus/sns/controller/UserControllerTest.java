@@ -16,15 +16,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithAnonymousUser;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 
 import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -126,6 +131,28 @@ public class UserControllerTest {
 
     }
 
+    // 알람 : 특정 user별로 알람을 받습니다. userController
+    @Test
+    @WithMockUser
+    void 알람기능() throws Exception {
+        when(userService.alarmList(any(), any())).thenReturn(Page.empty());
 
+        mockMvc.perform(get("/api/v1/users/alarm")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpect(status().isOk());
+    }
+    
+    // 알람 : 특정 user별로 알람을 받습니다. userController
+    @Test
+    @WithAnonymousUser
+    void 알람리스트_요청시_미로그인() throws Exception {
+        when(userService.alarmList(any(), any())).thenReturn(Page.empty());
+
+        mockMvc.perform(get("/api/v1/users/alarm")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpect(status().isUnauthorized());
+    }
 
 }

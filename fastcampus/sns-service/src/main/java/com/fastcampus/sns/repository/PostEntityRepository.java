@@ -10,5 +10,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface PostEntityRepository extends JpaRepository<PostEntity, Integer> {
 
+    //PK는 무조건 index가 걸려있다. 성능상 큰 상관이 없다. 아닌경우 인덱스가 필요하다.
     Page<PostEntity> findAllByUser(UserEntity userEntity, Pageable pageable);
 }

@@ -34,7 +34,7 @@ public class JwtTokenFilter extends OncePerRequestFilter{
 
         log.debug("HEADER : {}",HEADER);
         if (HEADER == null || !HEADER.startsWith("Bearer ")) {
-            log.error("Error occurs while getting header. header is null of invalid");
+            log.error("Error occurs while getting header. header is null of invalid, request URL {} ", request.getRequestURL());
             filterChain.doFilter(request,response);
             return;
         }
@@ -51,21 +51,18 @@ public class JwtTokenFilter extends OncePerRequestFilter{
 
             // user 조회 필요
             String userName = JwtTokenUtils.getUserName(TOKEN,key);
-            log.debug("username : {}", userName);
             // user 유효설 체크
             User user = userService.loadUserByUserName(userName);
-            log.debug("user : {} ", user.getUsername());
+
             // 유효하다면 다시 context에 송신
             UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                     // TODO 유저, 비밀, 권한
                     user, null, user.getAuthorities()
             );
 
-            log.debug("UsernamePasswordAuthenticationToken 1");
             // request 정보 추가
             authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authenticationToken);
-            log.debug("UsernamePasswordAuthenticationToken 3");
 
         } catch (RuntimeException e) {
             log.error("security filer error : {} ", e.getMessage());

@@ -14,7 +14,7 @@ public enum ErrorCode {
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED,"Token is invalid"),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND,"Post is not founded"),
     INVALID_PERMISSION(HttpStatus.UNAUTHORIZED,"permission denied"),
-
+    ALREADY_LIKES(HttpStatus.CONFLICT, "already likes"),
 
 
     TEMP(HttpStatus.BAD_REQUEST,"Temp error")

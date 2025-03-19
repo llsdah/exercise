@@ -2,7 +2,9 @@ package com.fastcampus.sns.service;
 
 import com.fastcampus.sns.exception.ErrorCode;
 import com.fastcampus.sns.exception.SNSApplicationException;
+import com.fastcampus.sns.model.Alarm;
 import com.fastcampus.sns.model.User;
+import com.fastcampus.sns.repository.AlarmEntityRepositoty;
 import com.fastcampus.sns.repository.UserEntityRepository;
 import com.fastcampus.sns.model.entity.UserEntity;
 import com.fastcampus.sns.util.JwtTokenUtils;
@@ -10,6 +12,9 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -21,6 +26,7 @@ import org.springframework.stereotype.Service;
 public class UserService {
 
     private final UserEntityRepository userEntityRepository;
+    private final AlarmEntityRepositoty alarmEntityRepositoty;
     private final BCryptPasswordEncoder encoder;
 
     @Value("${jwt.secret.key}")
@@ -76,4 +82,11 @@ public class UserService {
         );
     }
 
+    // TODO : alarm
+    public Page<Alarm> alarmList(String userName, Pageable pageable) {
+        UserEntity userEntity = userEntityRepository.findByUserName(userName)
+                .orElseThrow(() -> new SNSApplicationException(ErrorCode.USER_NOT_FOUNDES, String.format("%s not founded",userName)));
+
+        return alarmEntityRepositoty.findAllByUser(userEntity, pageable).map(Alarm::fromEntity);
+    }
 }
