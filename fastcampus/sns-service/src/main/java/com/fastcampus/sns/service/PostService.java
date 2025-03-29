@@ -57,6 +57,7 @@ public class PostService {
         return Post.fromEntity(postEntityRepository.saveAndFlush(postEntity));
     }
 
+    // like 와 comment도 같이 삭제
     @Transactional
     public void delete(String username, Integer postId) {
         UserEntity userEntity = getUserEntityOrException(username);
@@ -68,7 +69,8 @@ public class PostService {
         if (postEntity.getUser() != userEntity) {
             throw new SNSApplicationException(ErrorCode.INVALID_PERMISSION, String.format("%s , permission denied",username));
         }
-
+        likeEntityRepository.deleteAllByPost(postEntity);
+        commentEntityRepository.deleteAllByPost(postEntity);
         postEntityRepository.delete(postEntity);
     }
 
@@ -84,31 +86,33 @@ public class PostService {
 
     @Transactional
     public void like(Integer postId, String userName) {
-        UserEntity userEntity = getUserEntityOrException(userName);
 
-        // post exist
+        // user post exist FIXME 필수 구조 
+        UserEntity userEntity = getUserEntityOrException(userName);
         PostEntity postEntity = getPostEntityOrException(postId);
 
-        // check liked => exception
+        // check liked => exception 
         likeEntityRepository.findByUserAndPost(userEntity,postEntity).ifPresent(it -> {
             throw new SNSApplicationException(ErrorCode.ALREADY_LIKES, String.format("%s already likes %s", userEntity.getUserName(), postEntity.getTitle()));
         });
 
+        // FIXME 필수 구조  
         likeEntityRepository.save(LikeEntity.of(userEntity,postEntity));
 
+        // FIXME 좋아요가 주된 내용이고, 알람은 부가내용입니다. 
         alarmEntityRepositoty.save(AlarmEntity.of(
                 postEntity.getUser(),AlarmType.NEW_LIKE_ON_POST, new AlarmArguments(userEntity.getId(), postEntity.getId())));
 
     }
 
-    public Integer likeCount(Integer postId) {
+    public Long likeCount(Integer postId) {
         // post exist
 
         PostEntity postEntity = getPostEntityOrException(postId);
 
         //List<LikeEntity> list = likeEntityRepository.findAllByPost(postEntity);
         //return list.size();
-        Integer result = likeEntityRepository.countByPost(postEntity);
+        Long result = likeEntityRepository.countByPost(postEntity);
 
         return result;
     }
@@ -121,7 +125,8 @@ public class PostService {
 
         //comment save
         commentEntityRepository.save(CommentEntity.of(userEntity,postEntity,comment));
-
+        
+        // FIXME 댓글이 주된 내용이고, 알람은 부가내용입니다.
         alarmEntityRepositoty.save(AlarmEntity.of(
                 postEntity.getUser(),AlarmType.NEW_COMMENT_ON_POST, new AlarmArguments(userEntity.getId(), postEntity.getId())));
     }
@@ -136,6 +141,7 @@ public class PostService {
                 new SNSApplicationException(ErrorCode.POST_NOT_FOUND, String.format("%s not founded",postId)));
     }
 
+    // FIXME JwtTokenFilter에서 user 조회에서 절대 에러 발생 x  => 최적화 고민 = 코드중복, DBIO
     private UserEntity getUserEntityOrException(String username) {
         return userEntityRepository.findByUserName(username).orElseThrow(() ->
                 new SNSApplicationException(ErrorCode.USER_NOT_FOUNDES, String.format("%s not founded",username)));

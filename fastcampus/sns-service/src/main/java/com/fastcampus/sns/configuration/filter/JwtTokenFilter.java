@@ -50,8 +50,8 @@ public class JwtTokenFilter extends OncePerRequestFilter{
             };
 
             // user 조회 필요
-            String userName = JwtTokenUtils.getUserName(TOKEN,key);
-            // user 유효설 체크
+            String userName = JwtTokenUtils.getUserName(TOKEN, key);
+            // user 유효설 체크 FIXME # 문제점 1 user 확인후 Controller에서 재조회 = DBIO 발생
             User user = userService.loadUserByUserName(userName);
 
             // 유효하다면 다시 context에 송신

@@ -7,9 +7,12 @@ import com.fastcampus.sns.controller.response.AlarmResponse;
 import com.fastcampus.sns.controller.response.Response;
 import com.fastcampus.sns.controller.response.UserJoinResponse;
 import com.fastcampus.sns.controller.response.UserLoginResponse;
+import com.fastcampus.sns.exception.ErrorCode;
+import com.fastcampus.sns.exception.SNSApplicationException;
 import com.fastcampus.sns.model.Alarm;
 import com.fastcampus.sns.model.User;
 import com.fastcampus.sns.service.UserService;
+import com.fastcampus.sns.util.ClassUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -58,7 +61,23 @@ public class UserController {
 
     @GetMapping("/alarm")
     public Response<Page<AlarmResponse>> alarm(Pageable pageable, Authentication authentication) {
-        Page<Alarm> alarmPage = userService.alarmList(authentication.getName(), pageable);
+        log.debug("Alarm Controller");
+        User user = ClassUtils.getSafeCastInstance(authentication.getPrincipal(), User.class)
+                .orElseThrow(() -> new SNSApplicationException(ErrorCode.INTERNAL_SERVER_ERROR, "CLASS CASTING ERROR"));
+
+        Page<Alarm> alarmPage = userService.alarmList(user.getId(), pageable);
+        return Response.success(
+                alarmPage.map(AlarmResponse::fromAlarm)
+        );
+    }
+
+    @GetMapping("/alarm_old")
+    public Response<Page<AlarmResponse>> alarm_old(Pageable pageable, Authentication authentication) {
+
+        // TODO 실제 코드상 - context 부분과 가지고 올수 있는 사유를 정확히 이해해야합니다.
+        // User user = (User) authentication.getPrincipal();
+
+        Page<Alarm> alarmPage = userService.alarmList_old(authentication.getName(), pageable);
         return Response.success(
                 alarmPage.map(AlarmResponse::fromAlarm)
         );

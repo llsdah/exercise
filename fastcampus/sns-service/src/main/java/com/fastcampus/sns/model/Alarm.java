@@ -4,6 +4,7 @@ import com.fastcampus.sns.model.entity.AlarmEntity;
 import com.fastcampus.sns.model.entity.UserEntity;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -12,12 +13,14 @@ import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.List;
 
+@Slf4j
 @AllArgsConstructor
 @Getter
 public class Alarm {
 
     private Integer id;
-    private User user;
+    // FIXME user 데이터 불필요
+    //private User user;
     private AlarmType alarmType;
     private AlarmArguments alarmArguments;
 
@@ -26,9 +29,11 @@ public class Alarm {
     private Timestamp deletedAt;
 
     public static Alarm fromEntity(AlarmEntity entity) {
+        log.info("===== CALL from entity");
         return new Alarm(
                 entity.getId(),
-                User.fromEntity(entity.getUser()),
+                // FIXME user 데이터 불필요
+                //User.fromEntity(entity.getUser()),
                 entity.getAlarmType(),
                 entity.getAlarmArguments(),
                 entity.getRegisteredAt(),

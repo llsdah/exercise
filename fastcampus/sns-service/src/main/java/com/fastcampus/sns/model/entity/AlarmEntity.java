@@ -28,7 +28,7 @@ public class AlarmEntity {
     private Integer id;
 
     // 알람을 받을 사람.
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY) // FIXME N+1 문제 발생 => FetchType.EAGER 무조건 데이터 가지고 옴
     @JoinColumn(name = "user_id")
     private UserEntity user;
 

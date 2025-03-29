@@ -83,7 +83,14 @@ public class UserService {
     }
 
     // TODO : alarm
-    public Page<Alarm> alarmList(String userName, Pageable pageable) {
+    public Page<Alarm> alarmList(Integer userId, Pageable pageable) {
+        log.debug("Alarm Controller");
+        return alarmEntityRepositoty.findAllByUserId(userId, pageable).map(Alarm::fromEntity);
+    }
+
+    public Page<Alarm> alarmList_old(String userName, Pageable pageable) {
+
+        // user를 찾아서 넣어야 되는데 실제 정의 되는 부분은 userID 값만 있으면된다.
         UserEntity userEntity = userEntityRepository.findByUserName(userName)
                 .orElseThrow(() -> new SNSApplicationException(ErrorCode.USER_NOT_FOUNDES, String.format("%s not founded",userName)));
 
