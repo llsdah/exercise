@@ -4,9 +4,11 @@ import java.util.*;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 public class AlarmArguments {
     private Integer fromUserId; // 알람 발생시킨사람
     private Integer targetId; // 알람 주체

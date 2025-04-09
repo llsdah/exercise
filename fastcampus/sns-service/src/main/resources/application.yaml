@@ -15,6 +15,42 @@ spring:
     hibernate:
       ddl-auto: update  # (create, update, validate, none 중 선택)
     show-sql: true  # SQL 로그 출력 여부
+  data:
+    redis:
+      url: redis://localhost:6379
+      host: localhost
+      port: 6379
+      username: myuser
+      password: mypassword
+      database: 0
+  kafka:
+    topic:
+      alarm: my-topic
+    #properties:
+    #  security.protocol: SASL_SSL
+    #  sasl.mechanism: SCRAM-SHA-256
+    consumer:
+      bootstrap-servers:
+        - PLAINTEXT://localhost:9092
+      group-id: alarm
+      auto-offset-reset: latest # 컨슈머 뜨고 프로듀싱이 될 수 있지만, 프로듀싱 중에 컨슈머가 재생성시
+      key-deserializer: org.apache.kafka.common.serialization.IntegerDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring:
+          json:
+            trusted:
+              packages: "*"
+    listener:
+      ack-mode: MANUAL
+    producer:
+      bootstrap-servers:
+        - PLAINTEXT://localhost:9092
+      key-serializer: org.apache.kafka.common.serialization.IntegerSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable:
+          idempotence: false
 
 
 logging:
@@ -29,3 +65,5 @@ jwt:
   token:
     expired:
       time: 6000000 #30 day
+
+

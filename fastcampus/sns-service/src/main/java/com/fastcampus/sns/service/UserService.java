@@ -5,6 +5,7 @@ import com.fastcampus.sns.exception.SNSApplicationException;
 import com.fastcampus.sns.model.Alarm;
 import com.fastcampus.sns.model.User;
 import com.fastcampus.sns.repository.AlarmEntityRepositoty;
+import com.fastcampus.sns.repository.UserCacheRepository;
 import com.fastcampus.sns.repository.UserEntityRepository;
 import com.fastcampus.sns.model.entity.UserEntity;
 import com.fastcampus.sns.util.JwtTokenUtils;
@@ -28,6 +29,7 @@ public class UserService {
     private final UserEntityRepository userEntityRepository;
     private final AlarmEntityRepositoty alarmEntityRepositoty;
     private final BCryptPasswordEncoder encoder;
+    private final UserCacheRepository userCacheRepository;
 
     @Value("${jwt.secret.key}")
     private String key;
@@ -57,6 +59,14 @@ public class UserService {
     // TODO : implement, JWT 사용
     public String login(String userName, String password){
 
+        // 아래와 다르게 redis 사용하는 것으로 확인
+
+        User user = loadUserByUserName(userName);
+        userCacheRepository.setUser(user);
+        if (!encoder.matches(password, user.getPassword())) {
+            throw new SNSApplicationException(ErrorCode.INVALID_PASSWORD);
+        }
+        /**
         // 회원가입 여부 체크 
         UserEntity userEntity = userEntityRepository.findByUserName(userName).orElseThrow(
                 () -> new SNSApplicationException(ErrorCode.USER_NOT_FOUNDES,String.format("%s not founded",userName)));
@@ -66,7 +76,7 @@ public class UserService {
         if (!encoder.matches(password, userEntity.getPassword())) {
             throw new SNSApplicationException(ErrorCode.INVALID_PASSWORD);
         }
-
+        */
         // 토큰 생성 반환
         String token = JwtTokenUtils.generateToken(userName, key, expiredTime);
 
@@ -77,9 +87,11 @@ public class UserService {
 
     public User loadUserByUserName(String userName){
         log.debug("loadUserByUserName {} ",userName);
-        return userEntityRepository.findByUserName(userName).map(User::fromEntity).orElseThrow(
+        // redis에서 데이터 조회
+        return userCacheRepository.getUser(userName).orElseGet(() ->
+            userEntityRepository.findByUserName(userName).map(User::fromEntity).orElseThrow(
                 () -> new SNSApplicationException(ErrorCode.USER_NOT_FOUNDES,"not found user")
-        );
+        ));
     }
 
     // TODO : alarm

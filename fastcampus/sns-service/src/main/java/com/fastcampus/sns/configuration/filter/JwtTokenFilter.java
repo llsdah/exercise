@@ -17,6 +17,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -25,23 +26,36 @@ public class JwtTokenFilter extends OncePerRequestFilter{
     private final String key;
     private final UserService userService;
 
+    private final static List<String> TOKEN_IN_PARAM_URLS = List.of("/api/v1/alarm/subscribe");
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         // request 들어 올때 처리가 가능하다. ( 인증 확인 등 )
 
+        // TODO ALRAM
+        final String TOKEN;
+
+
         // 해당 프로젝트는 login시 헤더에 토큰 저장
         final String HEADER = request.getHeader(HttpHeaders.AUTHORIZATION);
-
-        log.debug("HEADER : {}",HEADER);
-        if (HEADER == null || !HEADER.startsWith("Bearer ")) {
-            log.error("Error occurs while getting header. header is null of invalid, request URL {} ", request.getRequestURL());
-            filterChain.doFilter(request,response);
-            return;
-        }
-
         try {
-            // TODO : TOKEN 유효성 체크
-            final String TOKEN = HEADER.split( " ")[1].trim();
+
+            if (TOKEN_IN_PARAM_URLS.contains(request.getRequestURL())) {
+                log.info("Request with {} check th query param",request.getRequestURL());
+                TOKEN = request.getQueryString().split("=")[1].trim();
+            } else {
+
+                log.debug("HEADER : {}",HEADER);
+                if (HEADER == null || !HEADER.startsWith("Bearer ")) {
+                    log.error("Error occurs while getting header. header is null of invalid, request URL {} ", request.getRequestURL());
+                    filterChain.doFilter(request,response);
+                    return;
+                }
+
+                // TODO : TOKEN 유효성 체크
+                TOKEN = HEADER.split( " ")[1].trim();
+
+            }
 
             if ( JwtTokenUtils.isExpired(TOKEN, key) ) {
                 log.error("Key is expired");

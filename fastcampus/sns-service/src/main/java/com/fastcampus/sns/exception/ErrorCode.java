@@ -15,7 +15,7 @@ public enum ErrorCode {
     POST_NOT_FOUND(HttpStatus.NOT_FOUND,"Post is not founded"),
     INVALID_PERMISSION(HttpStatus.UNAUTHORIZED,"permission denied"),
     ALREADY_LIKES(HttpStatus.CONFLICT, "already likes"),
-
+    ALARM_CONNECT_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Connecting alarm occurs error"),
 
     TEMP(HttpStatus.BAD_REQUEST,"Temp error")
     ;

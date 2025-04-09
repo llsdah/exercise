@@ -2,7 +2,13 @@ package com.fastcampus.sns.service;
 
 import com.fastcampus.sns.exception.ErrorCode;
 import com.fastcampus.sns.exception.SNSApplicationException;
+import com.fastcampus.sns.model.AlarmArguments;
+import com.fastcampus.sns.model.AlarmType;
 import com.fastcampus.sns.model.EmitterRepository;
+import com.fastcampus.sns.model.entity.AlarmEntity;
+import com.fastcampus.sns.model.entity.UserEntity;
+import com.fastcampus.sns.repository.AlarmEntityRepositoty;
+import com.fastcampus.sns.repository.UserEntityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,6 +28,8 @@ public class AlarmService {
     private final static Long DEFAULT_TIMEOUT = 60L * 1000 * 60;
     private final static String ALARM_NAME = "alarm";
     private final EmitterRepository emitterRepository;
+    private final AlarmEntityRepositoty alarmEntityRepositoty;
+    private final UserEntityRepository userEntityRepository;
 
     public SseEmitter connectAlarm(Integer userId) {
         SseEmitter sseEmitter = new SseEmitter(DEFAULT_TIMEOUT);
@@ -43,13 +51,22 @@ public class AlarmService {
 
     // 이벤트 보낼시 어떻게 보내야 할까 
     // 서버 1대에 여러 클라이언트 해당 서버 정보 저장 필요
-    public void sender(Integer alarmId,Integer userId){
+    //public void sender(Integer alarmId,Integer userId){
+    public void sender(AlarmType alarmType, AlarmArguments args, Integer receiverUserId){
+
+        // FIXME kafka 작업
+        UserEntity userEntity = userEntityRepository.findById(receiverUserId).orElseThrow(()
+                -> new SNSApplicationException(ErrorCode.USER_NOT_FOUNDES));
+        AlarmEntity alarmEntity = alarmEntityRepositoty.save(AlarmEntity.of(userEntity,alarmType, args));
+
+
+        // SSE
         // 서버에 한번이라도 접속해야 값이 있음 , null 가능
-        emitterRepository.get(userId).ifPresentOrElse(sseEmitter -> {
+        emitterRepository.get(receiverUserId).ifPresentOrElse(sseEmitter -> {
             try {
-                sseEmitter.send(sseEmitter.event().id(alarmId.toString()).name(ALARM_NAME).data(""));
+                sseEmitter.send(sseEmitter.event().id(alarmEntity.getId().toString()).name(ALARM_NAME).data(""));
             } catch (IOException e) {
-                emitterRepository.delete(userId);
+                emitterRepository.delete(receiverUserId);
                 throw new SNSApplicationException(ErrorCode.ALARM_CONNECT_ERROR);
             }
         },() -> log.info("No emitter founded"));

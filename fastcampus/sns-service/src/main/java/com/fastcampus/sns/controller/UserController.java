@@ -11,6 +11,7 @@ import com.fastcampus.sns.exception.ErrorCode;
 import com.fastcampus.sns.exception.SNSApplicationException;
 import com.fastcampus.sns.model.Alarm;
 import com.fastcampus.sns.model.User;
+import com.fastcampus.sns.service.AlarmService;
 import com.fastcampus.sns.service.UserService;
 import com.fastcampus.sns.util.ClassUtils;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import javax.swing.undo.AbstractUndoableEdit;
 
@@ -29,6 +31,7 @@ import javax.swing.undo.AbstractUndoableEdit;
 public class UserController {
 
     private final UserService userService;
+    private final AlarmService alarmService;
 
     /*
     @PostConstruct
@@ -70,6 +73,16 @@ public class UserController {
                 alarmPage.map(AlarmResponse::fromAlarm)
         );
     }
+
+    @GetMapping("/alarm/subscribe")
+    public SseEmitter subscribe(Authentication authentication) {
+        User user = ClassUtils.getSafeCastInstance(authentication.getPrincipal(), User.class).orElseThrow(
+                () -> new SNSApplicationException(ErrorCode.INTERNAL_SERVER_ERROR,
+                        "Casting to User class failed")
+        );
+        return alarmService.connectAlarm(user.getId());
+    }
+
 
     @GetMapping("/alarm_old")
     public Response<Page<AlarmResponse>> alarm_old(Pageable pageable, Authentication authentication) {
