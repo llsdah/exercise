@@ -1,4 +1,4 @@
-                                                                 ㅊpackage org.example.programmers.three;
+package org.example.programmers.three;
 
     import java.util.*;
 public class 운영체제 {
