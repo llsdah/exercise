@@ -17,7 +17,7 @@ public class 정수삼각형 {
         }
     }
 
-    class Solution {
+    class Solution1 {
         int max = 0;
         public int solution(int[][] triangle) {
             int answer = 0;

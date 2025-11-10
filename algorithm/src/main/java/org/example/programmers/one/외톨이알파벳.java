@@ -1,8 +1,7 @@
 package org.example.programmers.one;
-
+import java.util.*;
 public class 외톨이알파벳 {
 
-    import java.util.*;
     class Solution {
         public String solution(String input_string) {
             String answer = "";
