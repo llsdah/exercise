@@ -2,7 +2,7 @@ package org.example.programmers.campus;
 import java.util.*;
 
 public class 기능개발 {
-    public int[] solution(int[] progresses, int[] speeds) {
+    public int[] solution_my(int[] progresses, int[] speeds) {
         int[] answer = {};
         String str = "";
         List<Integer> list = new ArrayList<>();
@@ -37,4 +37,42 @@ public class 기능개발 {
 
         return answer;
     }
+
+    public int[] solution(int[] progresses, int[] speeds) {
+
+        Queue<Integer> que = new LinkedList<>();
+        // 수행 날짜
+        for (int i = 0 ; i < progresses.length; i++) {
+            float p = progresses[i];
+            float s = speeds[i];
+            // 올림처리
+            int day = (int)Math.ceil((100-p)/s);
+            que.offer(day);
+        }
+        Queue<Integer> answer = new LinkedList<>();
+        int d = que.poll();
+        int count = 1;
+        while(!que.isEmpty()) {
+            int n = que.poll();
+
+            if(d >= n) {
+                count ++;
+                continue;
+            }
+            answer.offer(count);
+            count = 1;
+            d = n;
+        }
+
+        answer.offer(count);
+        return answer.stream().mapToInt(Integer::intValue).toArray();
+    }
+
 }
+
+
+
+
+
+
+

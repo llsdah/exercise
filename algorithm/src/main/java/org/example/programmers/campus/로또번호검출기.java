@@ -2,7 +2,7 @@ package org.example.programmers.campus;
 import java.util.*;
 public class 로또번호검출기 {
 
-    public boolean solution(int[] lotto) {
+    public boolean solution_my(int[] lotto) {
         boolean answer = true;
 
         Set<Integer> set = new HashSet<>();
@@ -13,4 +13,5 @@ public class 로또번호검출기 {
 
         return answer;
     }
+
 }
