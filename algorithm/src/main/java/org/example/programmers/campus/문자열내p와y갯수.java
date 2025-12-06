@@ -25,7 +25,7 @@ public class 문자열내p와y갯수 {
         int y = s.replaceAll("[yY]","").length();
 
         String s2 = s.toLowerCase();
-        int p = 0;
+        p = 0;
         for (char c : s2.toCharArray()) if (c == 'p') p++;
         for (char c : s2.toCharArray()) if (c == 'y') p--;
         return p == 0;

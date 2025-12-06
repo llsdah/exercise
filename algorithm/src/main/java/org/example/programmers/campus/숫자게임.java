@@ -57,7 +57,7 @@ public class 숫자게임 {
         Arrays.sort(A);
         Arrays.sort(B);
         int idx = B.length -1;
-        for (int i = A.length-1;i >=0; --) {
+        for (int i = A.length-1;i >=0;) {
             if (A[i] < B[idx]) {
                 idx --;
                 answer ++;
