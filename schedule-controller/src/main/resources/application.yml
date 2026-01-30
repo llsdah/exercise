@@ -1,0 +1,43 @@
+
+spring:
+  application:
+    name: scheduler-poc
+  messages:
+    basename: messages
+    encoding: UTF-8
+
+  # 데이터소스 설정
+  datasource:
+    hikari:
+      maximum-pool-size: 30 # Quartz Thread(20) + Web Request 여유분(10)
+    url: jdbc:h2:mem:schedulerdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driverClassName: org.h2.Driver
+    username: sa
+    password:
+
+  # JPA 설정
+  jpa:
+    defer-datasource-initialization: true # 초기 데이터 로딩 시 필요할 수 있음
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  # H2 Console 설정 (이 부분이 중요!)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true # 외부 접속 허용 (필요시)
+
+server:
+  port: 8093
+
+
+app:
+  scheduler:
+    timeout: 3600 # second
+    # true: jobs 테이블 + QRTZ 테이블 모두 사용 (기존 방식)
+    # false: jobs 테이블 건너뛰고 QRTZ 테이블만 사용
+    use-meta-table: false

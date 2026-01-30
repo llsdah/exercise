@@ -3,7 +3,7 @@ package org.example.fundamentals;
 import java.util.*;
 
 /**
- * PCCP Level 2 - BFS 기본 문제
+ * PCCP Level 2 - BFS_1 기본 문제
  * "미로 최단 거리 찾기"
  *
  * 요구사항:
