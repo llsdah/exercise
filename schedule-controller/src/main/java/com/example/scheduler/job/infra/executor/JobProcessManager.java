@@ -1,5 +1,6 @@
 package com.example.scheduler.job.infra.executor;
 
+import com.example.scheduler.job.application.schedule.ScheduleKeyPolicy;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class JobProcessManager {
 
-
     public record ProcessKey(String jobGroup, String jobName) {}
 
     @Getter
@@ -21,21 +21,23 @@ public class JobProcessManager {
         private final Process process;
         private final long startTime;
         private final long timeoutSeconds;
+        private final String fireInstanceId; // [추가] Quartz 실행 고유 ID
     }
 
     private final Map<ProcessKey, RunningJobInfo> runningProcesses = new ConcurrentHashMap<>();
 
     // =========================================================
-    // 1. 프로세스 등록
+    // 1. 프로세스 등록 (fireInstanceId 파라미터 추가)
     // =========================================================
-    public void register(String jobGroup, String jobName, Process process, long timeoutSeconds) {
+    public void register(String jobGroup, String jobName, Process process, long timeoutSeconds, String fireInstanceId) {
         ProcessKey key = new ProcessKey(jobGroup, jobName);
-        runningProcesses.put(key, new RunningJobInfo(process, System.currentTimeMillis(), timeoutSeconds));
-        log.debug("Registered process for job: [{}]{}", jobGroup, jobName);
+        // 생성자에 fireInstanceId 추가
+        runningProcesses.put(key, new RunningJobInfo(process, System.currentTimeMillis(), timeoutSeconds, fireInstanceId));
+        log.debug("Registered process for job: [{}]{} (InstanceId: {})", jobGroup, jobName, fireInstanceId);
     }
 
     // =========================================================
-    // 2. 프로세스 제거 (정상 종료 시)
+    // 2. 프로세스 제거 (기존과 동일)
     // =========================================================
     public void remove(String jobGroup, String jobName) {
         ProcessKey key = new ProcessKey(jobGroup, jobName);
@@ -43,47 +45,60 @@ public class JobProcessManager {
     }
 
     // =========================================================
-    // 3. 프로세스 강제 종료 (Kill)
+    // 3. 프로세스 정보 조회 (Watchdog에서 사용)
     // =========================================================
-    public boolean killJob(String jobGroup, String jobName) {
-        ProcessKey key = new ProcessKey(jobGroup, jobName);
+    public RunningJobInfo getJobInfo(String jobGroup, String jobName) {
+        return runningProcesses.get(new ProcessKey(jobGroup, jobName));
+    }
 
-        // 1. 실행 중인 정보 조회
+    // =========================================================
+    // 4. 프로세스 강제 종료 (Kill)
+    // =========================================================
+    public boolean killJob(String tenantId, String jobGroup, String jobName) {
+        String quartzGroup = ScheduleKeyPolicy.jobGroup(tenantId, jobGroup);
+        ProcessKey key = new ProcessKey(quartzGroup, jobName);
+
         RunningJobInfo info = runningProcesses.get(key);
         if (info == null) {
-            log.warn("Cannot kill job. No running process found for: Group {}, Name {}", jobGroup, jobName);
+            log.warn("Cannot kill job. No running process found for: [{}]{}", quartzGroup, jobName);
+            log.error("--- Kill Job Failed: Key not found ---");
+            log.error("Searching for -> Group: [{}], Name: [{}]", quartzGroup, jobName);
+            log.error("Searching Key HashCode: {}", key.hashCode());
+
+            // 현재 Map에 들어있는 모든 키를 출력해서 눈으로 비교
+            runningProcesses.keySet().forEach(k -> {
+                log.info("Existing Key -> Group: [{}], Name: [{}], HashCode: {}",
+                        k.jobGroup(), k.jobName(), k.hashCode());
+
+                // 문자열 비교 (공백이나 숨은 특수문자 확인)
+                if (k.jobName().trim().equals(jobName.trim())) {
+                    log.warn("Found similar jobName! Check for invisible characters or case sensitivity.");
+                }
+            });
+
             return false;
         }
 
         Process process = info.getProcess();
         if (process != null && process.isAlive()) {
             try {
-                long pid = process.pid();
-                log.info("Killing process [PID: {}] for Job: [{}]{}", pid, jobGroup, jobName);
-
-                // [Java 9+] 자식 프로세스(Tree)까지 싹 다 정리
-                // 쉘 스크립트 내부에서 또 다른 명령어를 실행했을 때 좀비 프로세스 방지
+                // 자식 프로세스까지 깔끔하게 정리 (Shell 실행 시 필수)
                 process.toHandle().descendants().forEach(handle -> {
                     log.debug("Killing descendant process [PID: {}]", handle.pid());
                     handle.destroyForcibly();
                 });
-
-                // 본체 프로세스 종료
                 process.destroyForcibly();
-
-                log.info("Successfully killed process tree for job: [{}]{}", jobGroup, jobName);
+                log.info("Successfully killed process tree for job: [{}]{}", quartzGroup, jobName);
             } catch (Exception e) {
-                log.error("Failed to kill job: [{}]{}", jobGroup, jobName, e);
-                return false; // 실패 처리
+                log.error("Failed to kill process for job: [{}]{}", quartzGroup, jobName, e);
+                return false;
             }
         }
 
-        // 2. 맵에서 제거
-        remove(jobGroup, jobName);
+        remove(quartzGroup, jobName);
         return true;
     }
 
-    // 모니터링용 (전체 목록 조회)
     public Map<ProcessKey, RunningJobInfo> getRunningProcesses() {
         return runningProcesses;
     }

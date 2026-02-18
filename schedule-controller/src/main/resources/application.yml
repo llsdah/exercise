@@ -1,4 +1,3 @@
-
 spring:
   application:
     name: scheduler-poc
@@ -23,7 +22,7 @@ spring:
       ddl-auto: update
     show-sql: true
 
-  # H2 Console 설정 (이 부분이 중요!)
+  # H2 Console 설정
   h2:
     console:
       enabled: true
@@ -31,13 +30,38 @@ spring:
       settings:
         web-allow-others: true # 외부 접속 허용 (필요시)
 
+  # Quartz 설정
+  quartz:
+    properties:
+      org:
+        quartz:
+          threadPool:
+            threadCount: 20  # 동시 실행 Job이 많다면 상향 조정
+          scheduler:
+            batchTriggerAcquisitionMaxCount: 5 # 한 번에 5개씩 가져옴
+
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Seoul
+
 server:
   port: 8093
+
+management:
+  endpoint:
+    health:
+      show-details: always  # 추가
+    shutdown:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: shutdown, health, info
 
 
 app:
   scheduler:
-    timeout: 3600 # second
-    # true: jobs 테이블 + QRTZ 테이블 모두 사용 (기존 방식)
-    # false: jobs 테이블 건너뛰고 QRTZ 테이블만 사용
-    use-meta-table: false
+    use-meta-table: true          # Job 등록/삭제 시 DB 사용
+    check-meta-on-execute: true   # 실행 시 DB 조회
+    max-skip-count: 5             # Skip 최대 개수
+    timeout-seconds: 3600         # 타임아웃 (1시간)

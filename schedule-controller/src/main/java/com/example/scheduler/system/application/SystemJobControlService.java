@@ -1,9 +1,7 @@
 package com.example.scheduler.system.application;
 
-import com.example.scheduler.global.api.code.ErrorCode;
-import com.example.scheduler.global.error.BusinessException;
-import com.example.scheduler.history.application.JobHistoryCommand;
-import com.example.scheduler.history.application.JobHistoryService;
+import com.example.scheduler.history.application.JobExecutionHistoryCommand;
+import com.example.scheduler.history.application.JobExecutionHistoryService;
 import com.example.scheduler.history.domain.ExecutionStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,21 +20,16 @@ import java.util.List;
 public class SystemJobControlService {
 
     private final Scheduler scheduler;
-    private final JobHistoryService jobHistoryService;
+    private final JobExecutionHistoryService jobExecutionHistoryService;
 
-    /**
-     * 임계 시간을 초과한 작업을 찾아 Quartz Interrupt 발생
-     */
-    @Transactional
-    public int terminateHungJobs(long limitSeconds) {
+    public int terminateHungJobs(long limitSeconds) {  // 트랜잭션 제거
         int killedCount = 0;
         try {
-            // 현재 실행 중인 모든 작업 조회 (Quartz 메모리/DB 직접 접근)
             List<JobExecutionContext> executingJobs = scheduler.getCurrentlyExecutingJobs();
 
             for (JobExecutionContext context : executingJobs) {
 
-                if ( context.getJobDetail().getJobClass().getName().contains("HangCheckJob")) {
+                if (context.getJobDetail().getJobClass().getName().contains("HangCheckJob")) {
                     continue;
                 }
 
@@ -44,23 +37,31 @@ public class SystemJobControlService {
 
                 if (duration > limitSeconds) {
                     JobKey jobKey = context.getJobDetail().getKey();
-                    log.warn("🚨 Job Hang Detected: [{}]{} ({}s). Initiating Kill...", 
-                            jobKey.getGroup(), jobKey.getName(), duration);
 
-                    // 강제 종료 신호 전송
-                    if (scheduler.interrupt(jobKey)) {
+                    if (interruptAndRecord(jobKey, context, duration)) {
                         killedCount++;
-                        // 이력 기록
-                        recordHistory(jobKey, context.getFireTime(), duration);
-                    } else {
-                        throw new BusinessException(ErrorCode.JOB_ALREADY_STOPPED);
                     }
                 }
+
             }
+
         } catch (SchedulerException e) {
             log.error("Watchdog scan failed", e);
         }
         return killedCount;
+    }
+
+    @Transactional
+    private boolean interruptAndRecord(JobKey jobKey, JobExecutionContext context, long duration) {
+        try {
+            if (scheduler.interrupt(jobKey)) {
+                recordHistory(jobKey, context.getFireTime(), duration);
+                return true;
+            }
+        } catch (SchedulerException e) {
+            log.error("Failed to interrupt job: {}", jobKey, e);
+        }
+        return false;
     }
 
     // --- Private Helper Methods ---
@@ -74,7 +75,7 @@ public class SystemJobControlService {
     private void recordHistory(JobKey jobKey, java.util.Date fireDate, long duration) {
         LocalDateTime fireTime = fireDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
 
-        jobHistoryService.recordHistory(JobHistoryCommand.builder()
+        jobExecutionHistoryService.recordHistory(JobExecutionHistoryCommand.builder()
                 .jobGroup(jobKey.getGroup())
                 .jobName(jobKey.getName())
                 .startTime(fireTime)

@@ -1,5 +1,6 @@
 package com.example.scheduler.system.job;
 
+import com.example.scheduler.global.config.SchedulerProperties;
 import com.example.scheduler.system.application.SystemJobControlService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,17 +18,14 @@ public class HangCheckJob implements Job {
 
     private final SystemJobControlService systemJobControlService;
 
-    // 타임아웃 임계치 (예: 1시간 = 3600초)
-    // 설정값 주입 (기본값 true)
-    @Value("${app.scheduler.timeout:3600}")
-    private long TIMEOUT_THRESHOLD_SECONDS = 3600;
+    private final SchedulerProperties properties;
 
     @Override
     public void execute(JobExecutionContext context) {
         log.info("👮 [Watchdog] Starting routine inspection for hung jobs...");
 
         // 서비스에게 "오래된 작업 죽여라" 명령
-        int killedCount = systemJobControlService.terminateHungJobs(TIMEOUT_THRESHOLD_SECONDS);
+        int killedCount = systemJobControlService.terminateHungJobs(properties.timeoutSeconds());
 
         if (killedCount > 0) {
             log.warn("👮 [Watchdog] Terminated {} hung jobs. Peace restored.", killedCount);

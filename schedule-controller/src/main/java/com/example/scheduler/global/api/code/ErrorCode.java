@@ -2,24 +2,31 @@ package com.example.scheduler.global.api.code;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.springframework.http.HttpStatus;
 
 @Getter
 @AllArgsConstructor
 public enum ErrorCode implements BaseCode {
 
-    INTERNAL_SERVER_ERROR("E500", "error.server.internal"),
-    INVALID_INPUT_VALUE("E400", "error.input.invalid"),
+    // 공통 에러
+    INTERNAL_SERVER_ERROR("E500", "error.server.internal", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_INPUT_VALUE("E400", "error.input.invalid", HttpStatus.BAD_REQUEST),
 
-    JOB_NOT_FOUND("J001", "error.job.not.found"),
-    SKIP_SLOT_FULL("J002", "error.skip.slot.full"),
-    SKIP_NOT_FOUND("J003", "error.skip.not.found"),
+    // Job 에러
+    JOB_NOT_FOUND("J001", "error.job.not.found", HttpStatus.NOT_FOUND),
+    JOB_NOT_RUNNING("J002", "error.job.not.running", HttpStatus.CONFLICT),
+    JOB_ALREADY_STOPPED("J005", "error.job.already.stopped", HttpStatus.CONFLICT),
+    JOB_ALREADY_RUNNING("J006", "error.job.already.running", HttpStatus.CONFLICT),
 
-    // (참고) S001 코드가 SELECT_SUCCESS와 중복되는데, 의도하신 것이 맞다면 그대로 두셔도 됩니다.
-    // 보통 에러는 E나 J 접두어를 쓰므로 수정하시는 것을 추천합니다 (예: S999 or J004)
-    JOB_ALREADY_STOPPED("S001", "error.job.already.stopped");
+    // Skip 에러
+    SKIP_SLOT_FULL("J003", "error.skip.slot.full", HttpStatus.CONFLICT),
+    SKIP_NOT_FOUND("J004", "error.skip.not.found", HttpStatus.NOT_FOUND),
+    SKIP_REGISTER_ERROR_WITH_TIME("J007", "error.job.skip.register.time", HttpStatus.BAD_REQUEST),
+    ;
 
     private final String code;
     private final String messageKey;
+    private final HttpStatus httpStatus;
 
     @Override
     public String getMessage() {

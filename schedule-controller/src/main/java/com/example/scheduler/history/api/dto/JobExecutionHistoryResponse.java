@@ -4,12 +4,13 @@ import com.example.scheduler.history.domain.ExecutionStatus;
 import com.example.scheduler.history.domain.JobExecutionHistory;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
-public record JobHistoryResponse(
-        Long id,
-        String jobGroup,
-        String jobName,
+public record JobExecutionHistoryResponse(
+        String tenantId,
+        String scheduleGroup,
+        String scheduleName,
         Long executionCount,
         ExecutionStatus status,
         
@@ -23,16 +24,16 @@ public record JobHistoryResponse(
         Long duration, // 소요시간 (ms) - endTime이 있으면 계산해서 주는 편이 좋음
         String message // 결과 로그
 ) {
-    // Domain -> DTO 변환
-    public static JobHistoryResponse from(JobExecutionHistory history) {
-        // 소요 시간 계산 (종료 시간이 있을 때만)
-        long duration = 0;
-        if (history.getStartTime() != null && history.getEndTime() != null) {
-            duration = java.time.Duration.between(history.getStartTime(), history.getEndTime()).toMillis();
+
+    public static JobExecutionHistoryResponse from(JobExecutionHistory history) {
+        // 도메인의 duration 우선 사용, 없으면 계산
+        Long duration = history.getDuration();
+        if (duration == null && history.getStartTime() != null && history.getEndTime() != null) {
+            duration = Duration.between(history.getStartTime(), history.getEndTime()).toMillis();
         }
 
-        return new JobHistoryResponse(
-                history.getId(),
+        return new JobExecutionHistoryResponse(
+                history.getTenantId(),
                 history.getScheduleGroup(),
                 history.getScheduleName(),
                 history.getExecutionCount(),

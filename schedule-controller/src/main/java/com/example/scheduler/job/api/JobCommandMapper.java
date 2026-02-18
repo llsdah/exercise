@@ -1,59 +1,73 @@
 package com.example.scheduler.job.api;
 
-
 import com.example.scheduler.job.api.dto.ScheduleRequest;
 import com.example.scheduler.job.application.model.JobCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import java.util.*;
+import org.springframework.util.StringUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 /**
- * [Translator]
- * Web 요청(ScheduleRequest)을 App 명령(JobCommand)으로 번역하는 책임.
- * "정책 판단", "기본값 설정", "포맷 변환"을 여기서 수행합니다.
+ * [Request Mapper]
+ * Web Layer(Controller)의 요청 객체(Request)를 Application Layer의 명령 객체(Command)로 변환합니다.
+ * - 역할 1: 입력값의 전처리 (대소문자 통일, 기본값 주입)
+ * - 역할 2: 복잡한 데이터 구조 단순화 (Map -> String/JSON 변환)
+ * - 역할 3: 테넌트 컨텍스트 주입
  */
 @Component
 @RequiredArgsConstructor
 public class JobCommandMapper {
 
     public JobCommand toCommand(ScheduleRequest req) {
-        // 1. [정책 판단] CRON 타입일 때만 Cron 식 생성, ONCE면 null
 
-        //String cron = req.cronExpression();
-        //if (req.trigger() != null && "CRON".equalsIgnoreCase(req.trigger().type()) ) {
-        //    cron = buildCronExpression(req.trigger());
-        //}
+        // 1. [기본값 정책 및 소문자 변환]
+        // tenantId, scheduleGroup, scheduleName은 시스템 내부 식별자로 사용되므로 무조건 소문자로 변환.
+        String tenantId = Optional.ofNullable(req.tenantId()).map(String::toLowerCase).orElse(null);
 
-        // 2. [핵심] 파라미터 변환 로직 (Map -> String)
-        // args 먼저 넣고, 나머지는 --key=value 형태로 뒤에 붙임
+        String jobGroup = StringUtils.hasText(req.scheduleGroup())
+                ? req.scheduleGroup().toLowerCase()
+                : "default"; // 기본값도 소문자로 유지
+
+        String jobName = StringUtils.hasText(req.scheduleName())
+                ? req.scheduleName().toLowerCase()
+                : null;
+
+        // 2. [타입 대문자 변환]
+        // scheduleType, jobType 등 Enum 매핑 및 규격 통일을 위해 대문자로 변환.
+        String scheduleType = Optional.ofNullable(req.scheduleType()).map(String::toUpperCase).orElse(null);
+        String jobType = Optional.ofNullable(req.jobType()).map(String::toUpperCase).orElse(null);
+
+        // 3. [파라미터 변환] Map -> CLI String (--key=value)
         String flatParameters = buildFlatParameters(req.parameters());
 
-        // 3. [기본값 설정] 그룹이 없으면 DEFAULT로 설정
-        String group = (req.scheduleGroup() == null || req.scheduleGroup().isBlank()) 
-                       ? "default"
-                       : req.scheduleGroup();
-
-        // 입력 없으면 "SYSTEM"
-        String user = (req.scheduleUser() == null || req.scheduleUser().isBlank())
-                ? "system" : req.scheduleUser();
-
+        // 4. [객체 생성] 변환된 값들을 Command 객체에 매핑
         return new JobCommand(
-            group.toLowerCase(),
-            req.scheduleName().toLowerCase(),
-            req.scheduleType().toUpperCase(),
-            req.jobType().toUpperCase(),
-            req.scheduleUser(),
-            req.cronExpression(),
-            req.command(),
-            flatParameters,
-            req.startTime(),
-            req.endTime()
+                tenantId,                       // [소문자 변환 완료]
+                jobGroup,                          // [소문자 변환 완료]
+                jobName,                        // [소문자 변환 완료]
+
+                scheduleType,                   // [대문자 변환 완료]
+                jobType,                        // [대문자 변환 완료]
+                req.description(),
+
+                req.cronExpression(),
+                req.command(),
+                flatParameters,
+
+                req.scheduleStartTime(),
+                req.scheduleEndTime(),
+
+                req.regUserId()
         );
     }
 
     /**
-     * 파라미터 Map을 실행 가능한 CLI 문자열로 변환
-     * 규칙 1: "args" 키가 있으면 그 안의 리스트를 순서대로 맨 앞에 배치
-     * 규칙 2: 그 외의 키들은 --key=value 형태로 뒤에 배치
+     * [CLI 스타일 파라미터 빌더]
+     * Map<String, Object> params -> "arg1 arg2 --option1=value1 --option2=value2"
      */
     private String buildFlatParameters(Map<String, Object> parameters) {
         if (parameters == null || parameters.isEmpty()) {
@@ -62,28 +76,23 @@ public class JobCommandMapper {
 
         List<String> commandParts = new ArrayList<>();
 
-        // 1. "args" 처리 (위치 인자, 순서 보장)
         if (parameters.containsKey("args")) {
             Object argsObj = parameters.get("args");
             if (argsObj instanceof List<?>) {
-                List<?> list = (List<?>) argsObj;
-                for (Object item : list) {
-                    commandParts.add(String.valueOf(item));
+                for (Object item : (List<?>) argsObj) {
+                    if (item != null) {
+                        commandParts.add(String.valueOf(item));
+                    }
                 }
             }
         }
 
-        // 2. 그 외 Key-Value 처리 (옵션 인자)
-        // LinkedHashMap인 경우 입력 순서 유지됨 (Jackson 기본)
         parameters.forEach((key, value) -> {
-            if (!"args".equals(key)) {
-                // 예: --timeout=30 형태로 변환 (CLI 표준 스타일)
-                // 필요하다면 포맷 변경 가능 (예: "-" + key + " " + value)
+            if (!"args".equals(key) && value != null) {
                 commandParts.add("--" + key + "=" + value);
             }
         });
 
-        // 공백으로 연결하여 반환
         return String.join(" ", commandParts);
     }
 }

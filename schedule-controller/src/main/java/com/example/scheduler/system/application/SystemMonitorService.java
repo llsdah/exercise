@@ -1,4 +1,4 @@
-package com.example.scheduler.global.util;
+package com.example.scheduler.system.application;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

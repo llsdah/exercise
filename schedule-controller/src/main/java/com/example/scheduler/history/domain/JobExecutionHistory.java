@@ -8,37 +8,45 @@ import java.time.LocalDateTime;
 @Getter
 public class JobExecutionHistory {
 
-    private final Long id;
-    private final String scheduleGroup;      // [신규] 그룹
-    private final String scheduleName;       // 작업명
-    private final String scheduleType;
-    private final String jobType;       // 작업명
-    private final Long executionCount;  // [신규] N번째 실행
-    private final String cronExpression;       // [신규] 전체 명령어
-    private final String command;       // [신규] 전체 명령어
-    private final String parameters;       // [신규] 전체 명령어
+    // PK가 복합키로 바뀌었으므로 단일 ID 제거, TenantID 추가
+    private final String tenantId;
+    private final String scheduleGroup;
+    private final String scheduleName;
+    private final LocalDateTime startTime; // PK의 일부
+    private final String fireInstanceId;
 
-    private final ExecutionStatus status; // [신규] 상태 Enum
-    private final LocalDateTime startTime; // [신규] 시작 시간
-    private final LocalDateTime endTime;   // [신규] 종료 시간
-    private final String message;       // 실행 로그 및 에러 메시지
+    private final String scheduleType;
+    private final String jobType;
+    private final String jobId; // [신규]
+    private final Long executionCount;
+    private final String cronExpression;
+    private final String command;
+    private final String parameters;
+    private final ExecutionStatus status;
+    private final LocalDateTime endTime;
+    private final Long duration; // [신규]
+    private final String message;
 
     @Builder
-    public JobExecutionHistory(Long id, String scheduleGroup, String scheduleName, String scheduleType, String jobType, Long executionCount, String cronExpression,
-                               String command, String parameters, ExecutionStatus status,
-                               LocalDateTime startTime, LocalDateTime endTime, String message) {
-        this.id = id;
+    public JobExecutionHistory(String tenantId, String scheduleGroup, String scheduleName, LocalDateTime startTime,
+                               String fireInstanceId, String scheduleType, String jobType, String jobId,
+                               Long executionCount, String cronExpression, String command, String parameters,
+                               ExecutionStatus status, LocalDateTime endTime, Long duration, String message) {
+        this.tenantId = tenantId;
         this.scheduleGroup = scheduleGroup;
         this.scheduleName = scheduleName;
+        this.startTime = startTime;
+        this.fireInstanceId = fireInstanceId;
         this.scheduleType = scheduleType;
         this.jobType = jobType;
+        this.jobId = jobId;
         this.executionCount = executionCount;
         this.cronExpression = cronExpression;
         this.command = command;
         this.parameters = parameters;
         this.status = status;
-        this.startTime = startTime;
         this.endTime = endTime;
+        this.duration = duration;
         this.message = message;
     }
 }

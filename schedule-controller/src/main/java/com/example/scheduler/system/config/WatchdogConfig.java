@@ -8,25 +8,25 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class WatchdogConfig {
 
-    // 1. JobDetail 생성 (왓치독 작업 정의)
+    private static final String SYSTEM_GROUP = "SYSTEM::WATCHDOG";
+    private static final String JOB_NAME = "hangCheckJob";
+    private static final String TRIGGER_NAME = "hangCheckTrigger";
+
     @Bean
     public JobDetail watchdogJobDetail() {
         return JobBuilder.newJob(HangCheckJob.class)
-                .withIdentity("HANGCHECKJOB", "SYSTEM") // 그룹명을 SYSTEM으로 분리
+                .withIdentity(JOB_NAME, SYSTEM_GROUP)
                 .storeDurably()
                 .withDescription("Detects and terminates stuck jobs")
                 .build();
     }
 
-    // 2. Trigger 생성 (1분마다 실행)
     @Bean
     public Trigger watchdogJobTrigger(JobDetail watchdogJobDetail) {
-        // Cron Schedule: 1분마다 실행 (0 * * * * ?)
-        // 또는 Simple Schedule 사용 가능
         return TriggerBuilder.newTrigger()
                 .forJob(watchdogJobDetail)
-                .withIdentity("hangCheckTrigger", "SYSTEM")
-                .withSchedule(CronScheduleBuilder.cronSchedule("*/30 * * * * ?"))
+                .withIdentity(TRIGGER_NAME, SYSTEM_GROUP)
+                .withSchedule(CronScheduleBuilder.cronSchedule("0 * * * * ?"))  // 매분 0초
                 .build();
     }
 }

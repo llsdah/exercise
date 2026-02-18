@@ -32,9 +32,8 @@ public class GlobalExceptionHandler {
 
         log.warn("Business Exception: [{}] {}", code.getCode(), realMessage);
 
-        // 3. 에러 응답 반환 (200 OK에 에러 내용을 담는 방식 사용 시)
-        // 만약 HTTP 상태코드도 바꾸고 싶다면 ResponseEntity.status(...) 사용
-        return ResponseEntity.ok(ApiResponse.error(code.getCode(), realMessage));
+        return ResponseEntity.status(code.getHttpStatus())
+                .body(ApiResponse.error(code.getCode(), realMessage));
     }
 
     /**
