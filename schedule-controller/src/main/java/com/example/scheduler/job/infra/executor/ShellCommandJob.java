@@ -1,13 +1,13 @@
 package com.example.scheduler.job.infra.executor;
 
 import com.example.scheduler.history.domain.ExecutionStatus;
-import com.example.scheduler.job.application.model.JobExecutionInfo;
-import com.example.scheduler.job.application.model.JobExecutionResult;
-import com.example.scheduler.job.application.JobExecutionService;
+import com.example.scheduler.job.application.event.JobExecutionCompletedEvent;
+import com.example.scheduler.job.application.model.JobExecution;
 import com.example.scheduler.job.application.schedule.ScheduleKeyPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.*;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
@@ -16,7 +16,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -30,73 +29,58 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class ShellCommandJob implements Job, InterruptableJob {
 
-    private final JobExecutionService jobExecutionService;
     private final JobProcessManager jobProcessManager;
+    private final ApplicationEventPublisher eventPublisher; // Spring 표준
+
 
     private volatile boolean interrupted = false;
 
     @Override
     public void execute(JobExecutionContext context) {
         // 1. 실행 정보 추출
-        JobExecutionInfo info = extractExecutionInfo(context);
+        JobExecution info = extractExecution(context);
 
         log.info("========== Job 실행 시작: [{}]{}.{} ==========",
                 info.getTenantId(), info.getJobGroup(), info.getJobName());
 
-        // 2. 실행 가능 여부 검증
-        Optional<String> skipReason = jobExecutionService.validateExecution(info);
-
-        if (skipReason.isPresent()) {
-            JobExecutionResult result = JobExecutionResult.skipped(skipReason.get());
-            jobExecutionService.recordHistory(info, result);
-
-            // 유령 스케줄이면 Quartz에서 삭제
-            if (jobExecutionService.isOrphanSchedule(info)) {
-                deleteOrphanSchedule(context);
-            }
-            return;
-        }
-
         // 3. 프로세스 실행
-        JobExecutionResult result = executeProcess(info, context);
+        executeProcess(info, context);
 
         // 4. 이력 저장
-        jobExecutionService.recordHistory(info, result);
+        eventPublisher.publishEvent(new JobExecutionCompletedEvent(info));
 
         log.info("========== Job 실행 완료: [{}]{}.{} - {} ==========",
-                info.getTenantId(), info.getJobGroup(), info.getJobName(), result.getStatus());
+                info.getTenantId(), info.getJobGroup(), info.getJobName(), info.getStatus());
     }
 
-    /**
-     * Quartz Context에서 실행 정보 추출
-     */
-    private JobExecutionInfo extractExecutionInfo(JobExecutionContext context) {
+    private JobExecution extractExecution(JobExecutionContext context) {
         String quartzGroup = context.getJobDetail().getKey().getGroup();
         JobDataMap data = context.getJobDetail().getJobDataMap();
 
         LocalDateTime scheduledFireTime = context.getScheduledFireTime() != null
-                ? context.getScheduledFireTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
+                ? context.getScheduledFireTime().toInstant()
+                .atZone(ZoneId.systemDefault()).toLocalDateTime()
                 : null;
 
-        return JobExecutionInfo.builder()
-                .tenantId(ScheduleKeyPolicy.extractTenantId(quartzGroup))
-                .jobGroup(ScheduleKeyPolicy.extractGroup(quartzGroup))
-                .jobName(context.getJobDetail().getKey().getName())
-                .fireInstanceId(context.getFireInstanceId())
-                .cronExpression(data.getString("cronExpression"))
-                .command(data.getString("command"))
-                .parameters(data.getString("parameters"))
-                .jobType(data.getString("jobType"))
-                .scheduleType(data.getString("scheduleType"))
-                .timeout(data.containsKey("timeout") ? data.getLong("timeout") : 3600)
-                .scheduledFireTime(scheduledFireTime)
-                .build();
+        return JobExecution.of(
+                ScheduleKeyPolicy.extractTenantId(quartzGroup),
+                ScheduleKeyPolicy.extractGroup(quartzGroup),
+                context.getJobDetail().getKey().getName(),
+                context.getFireInstanceId(),
+                data.getString("cronExpression"),
+                data.getString("command"),
+                data.getString("parameters"),
+                data.getString("jobType"),
+                data.getString("scheduleType"),
+                data.containsKey("timeout") ? data.getLong("timeout") : 3600,
+                scheduledFireTime
+        );
     }
 
     /**
      * 프로세스 실행
      */
-    private JobExecutionResult executeProcess(JobExecutionInfo info, JobExecutionContext context) {
+    private void executeProcess(JobExecution info, JobExecutionContext context) {
         Process process = null;
         StringBuilder output = new StringBuilder();
         ExecutionStatus status = ExecutionStatus.SUCCESS;
@@ -146,13 +130,8 @@ public class ShellCommandJob implements Job, InterruptableJob {
             }
         }
 
-        return JobExecutionResult.builder()
-                .status(status)
-                .output(output.toString())
-                .startTime(startTime)
-                .endTime(LocalDateTime.now())
-                .pid(pid)
-                .build();
+        info.complete(status, output.toString(), startTime, LocalDateTime.now(), pid);
+
     }
 
     /**

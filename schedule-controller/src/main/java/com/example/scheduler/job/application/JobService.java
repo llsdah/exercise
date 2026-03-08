@@ -3,15 +3,14 @@ package com.example.scheduler.job.application;
 import com.example.scheduler.global.api.code.ErrorCode;
 import com.example.scheduler.global.config.SchedulerProperties;
 import com.example.scheduler.global.error.BusinessException;
-import com.example.scheduler.job.api.dto.ScheduleResponse;
 import com.example.scheduler.job.application.model.JobCommand;
+import com.example.scheduler.job.application.port.JobScheduleCommand;
+import com.example.scheduler.job.application.port.JobScheduleReader;
 import com.example.scheduler.job.domain.*;
 import com.example.scheduler.job.infra.executor.JobProcessManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +23,8 @@ import java.time.LocalDateTime;
 public class JobService {
 
     private final JobRepository jobRepository;      // Domain Repository (Interface)
-    private final JobScheduler jobScheduler;        // Quartz Scheduler Wrapper
+    private final JobScheduleCommand jobScheduleCommand;        // Quartz Scheduler Wrapper
+    private final JobScheduleReader jobScheduleReader;        // Quartz Scheduler Wrapper
     private final JobProcessManager jobProcessManager;
     private final SchedulerProperties properties;
 
@@ -100,7 +100,7 @@ public class JobService {
 
         // 3. 스케줄러 엔진에 등록 (Quartz)
         // 주의: Quartz JobKey도 TenantId를 포함하도록 설계되었는지 확인 필요 (보통 Name에 TenantId를 prefix로 붙임)
-        LocalDateTime nextFireTime = jobScheduler.register(jobToRegister);
+        LocalDateTime nextFireTime = jobScheduleCommand.register(jobToRegister);
 
         log.info("Job Registration Completed: [{}]{}.{}", command.tenantId(), command.jobGroup(), command.jobName());
         return nextFireTime;
@@ -119,7 +119,7 @@ public class JobService {
         }
 
         // 2. 스케줄러에서 제거
-        jobScheduler.delete(tenantId, jobGroup, jobName);
+        jobScheduleCommand.delete(tenantId, jobGroup, jobName);
 
         // 3. DB 삭제
         if (properties.useMetaTable()) {
@@ -150,7 +150,7 @@ public class JobService {
         }
 
         // 2. 스케줄러에 Trigger 요청
-        jobScheduler.runNow(tenantId, jobGroup, jobName);
+        jobScheduleCommand.runNow(tenantId, jobGroup, jobName);
         log.info("Requested immediate execution: [{}]{}.{}", tenantId, jobGroup, jobName);
     }
 
@@ -162,8 +162,23 @@ public class JobService {
         // 1. Quartz 스케줄러에서 해당 테넌트의 모든 JobKey 또는 상세 정보를 가져오도록 호출
         // (실제 구현은 jobScheduler 내부에서 Quartz API 사용)
         log.info("tenantId : {} , groupKeyword {} , nameKeyword {}",tenantId, groupKeyword,nameKeyword);
-        return jobScheduler.findSchedules(tenantId, groupKeyword, nameKeyword, from, to, pageable);
+        return jobScheduleReader.findSchedules(tenantId, groupKeyword, nameKeyword, from, to, pageable);
     }
 
+    /**
+     * [작업 다음예정시간 조회 - 페이징]
+     * Quartz 스케줄러의 다음예정시간을 조회합니다.
+     */
+    public Page<Schedule> getNextFireTimes(
+            String tenantId,
+            String scheduleGroup,
+            String scheduleName,
+            Pageable pageable
+    ) {
+        log.info("[NextFireTime] tenantId: {}, scheduleGroup: {}, scheduleName: {}",
+                tenantId, scheduleGroup, scheduleName);
+
+        return jobScheduleReader.findNextFireTimes(tenantId, scheduleGroup, scheduleName, pageable);
+    }
 
 }

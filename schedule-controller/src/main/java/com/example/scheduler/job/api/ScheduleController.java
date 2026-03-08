@@ -12,6 +12,7 @@ import com.example.scheduler.job.domain.Schedule;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -70,11 +71,11 @@ public class ScheduleController {
 
         String message = killed
                 ? "Job [" + scheduleGroup + " " + scheduleName + "] has been killed."
-                : "Job is already stopped.";
+                : "Job is already stopped or Fails to kill.";
 
         return ResponseEntity.ok(
                 responseService.success(
-                        SuccessCode.UPDATE_SUCCESS,
+                        SuccessCode.SUCCESS,
                         new SingleValueResponse<>("result", message)
                 )
         );
@@ -98,7 +99,7 @@ public class ScheduleController {
 
         return ResponseEntity.ok(
                 responseService.success(
-                        SuccessCode.UPDATE_SUCCESS,
+                        SuccessCode.SUCCESS,
                         new SingleValueResponse<>("result", "Execution triggered successfully.")
                 )
         );
@@ -148,8 +149,38 @@ public class ScheduleController {
         Page<Schedule> schedules = jobService.getSchedules(tenantId, scheduleGroup, scheduleName, from, to, pageable);
         return ResponseEntity.ok(responseService.success(
                 SuccessCode.SELECT_SUCCESS,
-                schedules.map(ScheduleResponse::from) // 깔끔한 참조
+                schedules.map(ScheduleResponse::from)
         ));
     }
+
+
+    /**
+     *
+     * [작업 다음예정시간 조회]
+     * GET /api/scheduler/next-fire-times
+     *
+     * ?tenant_id=t1
+     * ?tenant_id=t1&schedule_group=g1
+     * ?tenant_id=t1&schedule_name=n1
+     * ?tenant_id=t1&schedule_group=g1&schedule_name=n1
+     */
+    @GetMapping("/next-fire-times")
+    public ResponseEntity<ApiResponse<Page<ScheduleResponse>>> getNextFireTimes(
+            @RequestParam(name = "tenant_id",      defaultValue = "default") String tenantId,
+            @RequestParam(name = "schedule_group", required = false)         String scheduleGroup,
+            @RequestParam(name = "schedule_name",  required = false)         String scheduleName,
+            @PageableDefault(size = 20, sort = "nextFireTime", direction = Sort.Direction.ASC) Pageable pageable
+    ) {
+        Page<Schedule> schedules =
+                jobService.getNextFireTimes(tenantId, scheduleGroup, scheduleName, pageable);
+
+        return ResponseEntity.ok(
+                responseService.success(
+                        SuccessCode.SELECT_SUCCESS,
+                        schedules.map(ScheduleResponse::from)
+                )
+        );
+    }
+
 
 }

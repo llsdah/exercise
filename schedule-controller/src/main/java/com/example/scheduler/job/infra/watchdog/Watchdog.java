@@ -1,6 +1,7 @@
-package com.example.scheduler.job.infra.executor;
+package com.example.scheduler.job.infra.watchdog;
 
 import com.example.scheduler.job.application.schedule.ScheduleKeyPolicy;
+import com.example.scheduler.job.infra.executor.JobProcessManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.JobExecutionContext;
@@ -36,7 +37,7 @@ import java.util.List;
 @Component
 @EnableScheduling
 @RequiredArgsConstructor
-public class WatchdogScheduler {
+public class Watchdog {
 
     /**
      * 현재 JVM에서 실행 중인 Job 프로세스 정보를 관리하는 컴포넌트

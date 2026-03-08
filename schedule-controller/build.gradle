@@ -1,6 +1,8 @@
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.5.1' // 최신 버전 사용
+    id 'org.springframework.boot' version '4.0.3' // 최신 버전 사용
     id 'io.spring.dependency-management' version '1.1.4'
 }
 
@@ -17,10 +19,9 @@ java {
     }
 }
 
-sourceCompatibility = '21'
-
 dependencies {
     // Web (API를 통해 스케줄 등록 테스트용)
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 
@@ -31,19 +32,191 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-quartz'
 
     // Spring Batch (옵션: 단순 OS 명령어 실행이면 필수 아님, 배치 작업 연동시 필요)
-    implementation 'org.springframework.boot:spring-boot-starter-batch'
+    // implementation 'org.springframework.boot:spring-boot-starter-batch'
 
     // 유효성 검증
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
     // OS 성능 확인
-    implementation 'com.github.oshi:oshi-core:6.4.10'
+    implementation 'com.github.oshi:oshi-core:6.9.3'
 
     // Database
-    runtimeOnly 'com.h2database:h2' // 또는 'com.mysql:mysql-connector-j'
+    // runtimeOnly 'com.h2database:h2' // 또는 'com.mysql:mysql-connector-j'
 
+    implementation 'org.springframework.boot:spring-boot-h2console'
+
+    runtimeOnly 'com.h2database:h2'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.batch:spring-batch-test'
+
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 오프라인 반입 대상 Configuration 목록
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ext.offlineConfigurations = [
+        'runtimeClasspath',
+        'compileClasspath',
+        'annotationProcessor',
+        'testRuntimeClasspath',
+        'testCompileClasspath',
+]
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Task: collectOfflineLibs
+// 실행: ./gradlew collectOfflineLibs
+// 결과: build/offline-libs/ (일반 의존성 JAR + plugins JAR 전체)
+//
+// [수집 대상]
+//   1. 일반 의존성 - runtimeClasspath, compileClasspath 등
+//   2. Plugin classpath - spring-boot-gradle-plugin,
+//                         dependency-management.gradle.plugin 등
+//      → 오프라인에서 buildscript classpath 로 필요한 JAR들
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+tasks.register('collectOfflineLibs') {
+    group = 'help'
+    description = 'Collect all dependency JARs for offline use (including plugins)'
+
+    doLast {
+        def outputDir = layout.buildDirectory.dir("offline-libs").get().asFile
+        outputDir.mkdirs()
+
+        def copiedCount  = 0
+        def skippedCount = 0
+
+        // 파일명 기준으로 복사 (중복 스킵)
+        def copyFile = { File srcFile ->
+            def destFile = new File(outputDir, srcFile.name)
+            if (!destFile.exists()) {
+                java.nio.file.Files.copy(srcFile.toPath(), destFile.toPath())
+                println "  [COPY] ${srcFile.name}"
+                copiedCount++
+            } else {
+                skippedCount++
+            }
+        }
+
+        // ── 1. 일반 의존성 ──────────────────────────────────────────
+        println "\n[1/2] 일반 의존성 수집 중..."
+        offlineConfigurations.each { configName ->
+            def config = configurations.findByName(configName)
+            if (config == null) {
+                println "  [WARN] Configuration not found: ${configName}"
+                return
+            }
+            try {
+                config.incoming.artifacts.each { artifact ->
+                    copyFile(artifact.file)
+                }
+            } catch (Exception e) {
+                println "  [WARN] Failed [${configName}]: ${e.message}"
+            }
+        }
+
+        // ── 2. Plugin classpath ─────────────────────────────────────
+        // plugins {} 블록에서 사용한 Gradle 플러그인 JAR 전체 수집
+        // 오프라인 환경에서 buildscript.dependencies.classpath 로 필요
+        println "\n[2/2] Plugin classpath 수집 중..."
+        println "  (spring-boot-gradle-plugin, dependency-management.gradle.plugin 등)"
+        try {
+            buildscript.configurations.classpath
+                    .resolvedConfiguration
+                    .resolvedArtifacts
+                    .each { artifact ->
+                        copyFile(artifact.file)
+                    }
+        } catch (Exception e) {
+            println "  [WARN] Failed [plugins]: ${e.message}"
+        }
+
+        println """
+============================================================
+[완료] collectOfflineLibs
+  출력 경로 : ${outputDir.absolutePath}
+  복사됨    : ${copiedCount}개
+  스킵됨    : ${skippedCount}개 (이미 존재)
+
+[다음 단계]
+  1. build/offline-libs/ 폴더 전체를
+     오프라인 환경 프로젝트 루트 libs/ 에 복사
+  2. build.gradle 을 오프라인 모드로 전환:
+     - plugins {} 블록 주석 처리
+     - buildscript {} + apply 블록 주석 해제
+     - repositories { mavenCentral() } 주석 처리
+     - repositories { flatDir } 주석 해제
+============================================================"""
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Task: exportDependencies
+// 실행: ./gradlew exportDependencies
+// 결과: build/dependency-list.txt (전체 의존성 목록 텍스트)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+tasks.register('exportDependencies') {
+    group = 'help'
+    description = 'Export all dependency list to text file (including plugins)'
+
+    doLast {
+        def outputFile = layout.buildDirectory.file("dependency-list.txt").get().asFile
+        outputFile.parentFile.mkdirs()
+        outputFile.text = "# Offline Dependency List\n# Generated: ${new Date()}\n\n"
+
+        def allLibs = [] as LinkedHashSet
+
+        // ── 1. 일반 의존성 ──
+        offlineConfigurations.each { configName ->
+            def config = configurations.findByName(configName)
+            if (config == null) return
+            try {
+                outputFile << "## [${configName}]\n"
+                config.incoming.artifacts.each { artifact ->
+                    def id   = artifact.id.componentIdentifier
+                    def line = id instanceof ModuleComponentIdentifier
+                            ? "${id.group}:${id.module}:${id.version}"
+                            : id.displayName
+                    allLibs << line
+                    outputFile << "  ${line}\n"
+                }
+                outputFile << "\n"
+            } catch (Exception e) {
+                println "  [WARN] Failed [${configName}]: ${e.message}"
+            }
+        }
+
+        // ── 2. Plugin classpath ──
+        try {
+            outputFile << "## [plugins]\n"
+            buildscript.configurations.classpath
+                    .resolvedConfiguration
+                    .resolvedArtifacts
+                    .each { artifact ->
+                        def id   = artifact.moduleVersion.id
+                        def line = "${id.group}:${id.name}:${id.version}"
+                        allLibs << line
+                        outputFile << "  ${line}\n"
+                    }
+            outputFile << "\n"
+        } catch (Exception e) {
+            println "  [WARN] Failed [plugins]: ${e.message}"
+        }
+
+        println """
+============================================================
+[완료] exportDependencies
+  출력 파일 : ${outputFile.absolutePath}
+  고유 라이브러리 수 : ${allLibs.size()}개
+============================================================"""
+    }
+}
+
+test {
+    useJUnitPlatform()
 }

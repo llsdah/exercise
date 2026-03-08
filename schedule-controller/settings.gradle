@@ -2,3 +2,77 @@ plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
 }
 rootProject.name = 'schedule-controller'
+
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// settings.gradle 플러그인 JAR 수집
+// 실행: ./gradlew collectSettingsPlugins
+// 결과: build/offline-libs/ 에 아래 JAR 추가
+//   - foojay-resolver-convention (settings.gradle 플러그인)
+//   - io.spring.dependency-management (build.gradle 플러그인)
+//
+// 주의: settings.gradle 의 plugins {} 는 buildscript classpath 와
+//       별도 분리되어 있어 build.gradle 에서 접근 불가.
+//       반드시 이 파일에서 별도 수집 필요.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+gradle.settingsEvaluated { settings ->
+    settings.gradle.rootProject {
+        tasks.register('collectSettingsPlugins') {
+            group = 'help'
+            description = 'Collect settings.gradle plugin JARs for offline use'
+
+            doLast {
+                def outputDir = layout.buildDirectory.dir("offline-libs").get().asFile
+                outputDir.mkdirs()
+
+                def copiedCount  = 0
+                def skippedCount = 0
+
+                def copyFile = { File srcFile ->
+                    def destFile = new File(outputDir, srcFile.name)
+                    if (!destFile.exists()) {
+                        java.nio.file.Files.copy(srcFile.toPath(), destFile.toPath())
+                        println "  [COPY] ${srcFile.name}"
+                        copiedCount++
+                    } else {
+                        skippedCount++
+                    }
+                }
+
+                // ── settings.gradle 의 pluginManagement classpath ──────────
+                // foojay-resolver-convention 등 settings 전용 플러그인 JAR
+                println "\n[settings plugins] 수집 중..."
+                println "  대상: foojay-resolver-convention, dependency-management 등"
+                try {
+                    settings.buildscript.configurations.classpath
+                            .resolvedConfiguration
+                            .resolvedArtifacts
+                            .each { artifact ->
+                                copyFile(artifact.file)
+                            }
+                } catch (Exception e) {
+                    println "  [WARN] settings.buildscript.classpath 접근 실패: ${e.message}"
+                }
+
+                // ── pluginManagement classpath (별도 경로) ─────────────────
+                try {
+                    settings.pluginManagement.resolutionStrategy.eachPlugin {}
+                    settings.gradle.pluginManager.resolvePluginArtifacts()?.each { artifact ->
+                        copyFile(artifact)
+                    }
+                } catch (Exception ignored) {
+                    // API 버전별 차이 있으므로 무시
+                }
+
+                println """
+============================================================
+[완료] collectSettingsPlugins
+  출력 경로 : ${outputDir.absolutePath}
+  복사됨    : ${copiedCount}개
+  스킵됨    : ${skippedCount}개 (이미 존재)
+============================================================"""
+            }
+        }
+    }
+}

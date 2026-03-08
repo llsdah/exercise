@@ -1,4 +1,4 @@
-package com.example.scheduler.job.infra.persistent;
+package com.example.scheduler.job.infra.persistence;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

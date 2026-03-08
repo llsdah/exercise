@@ -11,7 +11,7 @@ spring:
       maximum-pool-size: 30 # Quartz Thread(20) + Web Request 여유분(10)
     url: jdbc:h2:mem:schedulerdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driverClassName: org.h2.Driver
-    username: sa
+    username: ENC(MIDUXjE/IxNg2ockbBt/kTIOMlIE6koNSAn5CY35)
     password:
 
   # JPA 설정
@@ -32,6 +32,12 @@ spring:
 
   # Quartz 설정
   quartz:
+    job-store-type: jdbc
+    jdbc:
+        # ✅ always → embedded 로 변경
+        # always: 매번 DROP + CREATE 시도 → 기동 시 충돌 가능
+        # embedded: H2/HSQL 같은 embedded DB일 때만 자동 생성 → 안전
+      initialize-schema: always
     properties:
       org:
         quartz:
@@ -58,10 +64,11 @@ management:
       exposure:
         include: shutdown, health, info
 
-
 app:
   scheduler:
     use-meta-table: true          # Job 등록/삭제 시 DB 사용
     check-meta-on-execute: true   # 실행 시 DB 조회
     max-skip-count: 5             # Skip 최대 개수
     timeout-seconds: 3600         # 타임아웃 (1시간)
+  enc:
+    test: ENC(mRT40urKn7WpK74YyRDTCJSUt3C1zbnPZ1v8jUDVqB0=)

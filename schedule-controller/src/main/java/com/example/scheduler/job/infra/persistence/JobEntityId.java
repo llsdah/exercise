@@ -1,4 +1,4 @@
-package com.example.scheduler.job.infra.persistent;
+package com.example.scheduler.job.infra.persistence;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;

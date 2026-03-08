@@ -2,9 +2,10 @@ package com.example.scheduler.job.infra.scheduler;
 
 import com.example.scheduler.global.api.code.ErrorCode;
 import com.example.scheduler.global.error.BusinessException;
+import com.example.scheduler.job.application.port.JobScheduleReader;
 import com.example.scheduler.job.application.schedule.ScheduleKeyPolicy;
 import com.example.scheduler.job.domain.Job;
-import com.example.scheduler.job.domain.JobScheduler;
+import com.example.scheduler.job.application.port.JobScheduleCommand;
 import com.example.scheduler.job.domain.JobStatus;
 import com.example.scheduler.job.domain.Schedule;
 import com.example.scheduler.job.infra.executor.ShellCommandJob;
@@ -25,7 +26,7 @@ import java.util.*;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class QuartzJobScheduler implements JobScheduler {
+public class QuartzJobScheduler implements JobScheduleCommand, JobScheduleReader {
 
     private final Scheduler scheduler;
 
@@ -107,19 +108,6 @@ public class QuartzJobScheduler implements JobScheduler {
         return nextFireTime == null ? null : this.toLocalDateTime(nextFireTime);
     }
 
-    // LocalDateTime -> Date 변환 유틸
-    private Date toDate(LocalDateTime ldt) {
-        return Date.from(ldt.atZone(ZoneId.systemDefault()).toInstant());
-    }
-
-    // Date -> LocalDateTime 변환 유틸
-    private LocalDateTime toLocalDateTime(Date date) {
-        if (date == null) {
-            return null;
-        }
-        return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
-    }
-
     @Override
     public void delete(String tenantId, String jobGroup, String jobName) {
 
@@ -196,6 +184,28 @@ public class QuartzJobScheduler implements JobScheduler {
         }
     }
 
+    // QuartzJobScheduler
+    public void pauseJob(JobKey jobKey) {
+        try {
+            scheduler.pauseJob(jobKey);
+            log.warn("Job PAUSE 완료: {}", jobKey);
+        } catch (SchedulerException e) {
+            log.error("Job PAUSE 실패: {}", jobKey, e);
+            // TODO "PAUSE 실패: " + jobKey, e
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public void resumeJob(JobKey jobKey) {
+        try {
+            scheduler.resumeJob(jobKey);
+            log.info("Job RESUME 완료: {}", jobKey);
+        } catch (SchedulerException e) {
+            log.error("Job RESUME 실패: {}", jobKey, e);
+            // TODO "RESUME 실패: " + jobKey, e
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+    }
 
     /**
      * [모니터링 검색] Quartz 실시간 조회 + 페이징 + 필터링
@@ -270,6 +280,65 @@ public class QuartzJobScheduler implements JobScheduler {
         return paginate(fullList, pageable);
     }
 
+    @Override
+    public Page<Schedule> findNextFireTimes(
+            String tenantId,
+            String scheduleGroup,
+            String scheduleName,
+            Pageable pageable
+    ) {
+        List<Schedule> fullList = new ArrayList<>();
+
+        try {
+            // 1. GroupMatcher 결정
+            //    - scheduleGroup 있음 → 해당 그룹만 (group::*)
+            //    - scheduleGroup 없음 → 테넌트 전체 (tenantId::*)
+            GroupMatcher<JobKey> matcher = StringUtils.hasText(scheduleGroup)
+                    ? GroupMatcher.jobGroupEquals(ScheduleKeyPolicy.jobGroup(tenantId, scheduleGroup))
+                    : GroupMatcher.jobGroupStartsWith(tenantId + "::");
+
+            // 2. JobKey Set 조회
+            Set<JobKey> jobKeys = scheduler.getJobKeys(matcher);
+            log.debug("[NextFireTime] tenantId={}, group={}, name={} → {} key(s)",
+                    tenantId, scheduleGroup, scheduleName, jobKeys.size());
+
+            // 3. 각 Job 상세 조회 및 변환
+            for (JobKey jobKey : jobKeys) {
+
+                // scheduleName 부분일치 필터
+                //   - name 있으면: jobKey.getName()에 scheduleName이 포함되어야 함 (*::name)
+                //   - name 없으면: 필터 없이 전체 통과
+                if (StringUtils.hasText(scheduleName)
+                        && !jobKey.getName().contains(scheduleName.toLowerCase())) {
+                    continue;
+                }
+
+                List<? extends Trigger> triggers = scheduler.getTriggersOfJob(jobKey);
+                Trigger primaryTrigger = triggers.isEmpty() ? null : triggers.get(0);
+                JobDetail jobDetail    = scheduler.getJobDetail(jobKey);
+
+                Trigger.TriggerState triggerState = (primaryTrigger != null)
+                        ? scheduler.getTriggerState(primaryTrigger.getKey())
+                        : Trigger.TriggerState.NONE;
+
+                fullList.add(toSchedule(tenantId, jobKey, jobDetail, primaryTrigger, triggerState));
+            }
+
+        } catch (SchedulerException e) {
+            log.error("[NextFireTime] Quartz 조회 실패", e);
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        // 4. nextFireTime ASC 정렬 (null 마지막) - QuartzJobScheduler와 동일
+        fullList.sort(Comparator.comparing(
+                Schedule::getNextFireTime,
+                Comparator.nullsLast(Comparator.naturalOrder())
+        ));
+
+        // 5. 페이징
+        return paginate(fullList, pageable);
+    }
+
     private Schedule toSchedule(String tenantId, JobKey jobKey, JobDetail jobDetail,
                                 Trigger trigger, Trigger.TriggerState state) {
 
@@ -311,5 +380,17 @@ public class QuartzJobScheduler implements JobScheduler {
         return new PageImpl<>(content, pageable, total);
     }
 
+    // LocalDateTime -> Date 변환 유틸
+    private Date toDate(LocalDateTime ldt) {
+        return Date.from(ldt.atZone(ZoneId.systemDefault()).toInstant());
+    }
+
+    // Date -> LocalDateTime 변환 유틸
+    private LocalDateTime toLocalDateTime(Date date) {
+        if (date == null) {
+            return null;
+        }
+        return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+    }
 
 }

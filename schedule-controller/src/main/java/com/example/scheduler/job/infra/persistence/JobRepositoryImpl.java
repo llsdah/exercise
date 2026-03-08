@@ -1,4 +1,4 @@
-package com.example.scheduler.job.infra.persistent;
+package com.example.scheduler.job.infra.persistence;
 
 import com.example.scheduler.job.domain.Job;
 import com.example.scheduler.job.domain.JobRepository;

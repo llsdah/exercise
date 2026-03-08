@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Getter
 public class JobExecutionHistory {
@@ -35,7 +36,9 @@ public class JobExecutionHistory {
         this.tenantId = tenantId;
         this.scheduleGroup = scheduleGroup;
         this.scheduleName = scheduleName;
-        this.startTime = startTime;
+        this.startTime = startTime != null
+                ? startTime.truncatedTo(ChronoUnit.SECONDS)
+                : null;
         this.fireInstanceId = fireInstanceId;
         this.scheduleType = scheduleType;
         this.jobType = jobType;
@@ -45,7 +48,9 @@ public class JobExecutionHistory {
         this.command = command;
         this.parameters = parameters;
         this.status = status;
-        this.endTime = endTime;
+        this.endTime = endTime != null
+                ? endTime.truncatedTo(ChronoUnit.SECONDS)
+                : null;
         this.duration = duration;
         this.message = message;
     }

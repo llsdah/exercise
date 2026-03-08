@@ -4,7 +4,6 @@ import com.example.scheduler.global.constants.SchedulerConstants;
 
 public final class ScheduleKeyPolicy {
 
-
     private ScheduleKeyPolicy() {}
 
     public static String jobGroup(String tenantId, String group) {
