@@ -28,7 +28,7 @@ public class JobExecutionService {
     // AOP 타겟
     @EventListener
     public void onSimpleHistory(JobSimpleHistoryEvent event) {
-        jobExecutionRecorder.recordSimpleHistory(event.tenantId(), event.jobGroup(), event.jobName());
+        jobExecutionRecorder.recordSimpleHistory(event.tenantId(), event.jobGroup(), event.jobName(), event.message());
     }
 
 }

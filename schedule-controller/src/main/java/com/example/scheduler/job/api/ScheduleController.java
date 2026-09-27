@@ -70,7 +70,7 @@ public class ScheduleController {
         boolean killed = jobService.killJob(tenantId, scheduleGroup, scheduleName);
 
         String message = killed
-                ? "Job [" + scheduleGroup + " " + scheduleName + "] has been killed."
+                ? "Termination requested for Job [" + scheduleGroup + " " + scheduleName + "]."
                 : "Job is already stopped or Fails to kill.";
 
         return ResponseEntity.ok(

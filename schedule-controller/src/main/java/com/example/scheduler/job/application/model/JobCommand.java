@@ -30,6 +30,4 @@ public record JobCommand(
 
         // [요청자]
         String regUserId
-) {
-    // 필요 시 정적 팩토리 메서드 추가 가능
-}
+) {}

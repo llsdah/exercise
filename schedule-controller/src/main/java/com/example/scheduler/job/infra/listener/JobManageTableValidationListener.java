@@ -5,6 +5,7 @@ import com.example.scheduler.job.application.event.OrphanScheduleDetectedEvent;
 import com.example.scheduler.job.application.schedule.ScheduleKeyPolicy;
 import com.example.scheduler.job.domain.Job;
 import com.example.scheduler.job.domain.JobRepository;
+import com.example.scheduler.job.infra.executor.ShellCommandJob;
 //import com.example.scheduler.job.infra.listener.event.OrphanScheduleDetectedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +35,9 @@ public class JobManageTableValidationListener extends TriggerListenerSupport {
     @Override
     public boolean vetoJobExecution(Trigger trigger, JobExecutionContext context) {
         try {
-            if (!properties.checkMetaOnExecute()) {
+            if (!Boolean.TRUE.equals(properties.useMetaTable()) || !Boolean.TRUE.equals(properties.checkMetaOnExecute())
+                    || !ShellCommandJob.class.isAssignableFrom(context.getJobDetail().getJobClass())
+                    || context.isRecovering()) {
                 return false;
             }
 
@@ -63,7 +66,8 @@ public class JobManageTableValidationListener extends TriggerListenerSupport {
             }
 
         } catch (Exception e) {
-            log.error("메타 테이블 체크 중 오류 - 실행 허용으로 fallback", e);
+            log.error("메타 테이블 체크 실패 - 검증되지 않은 Process 실행 차단", e);
+            return true;
         }
         return false;
     }

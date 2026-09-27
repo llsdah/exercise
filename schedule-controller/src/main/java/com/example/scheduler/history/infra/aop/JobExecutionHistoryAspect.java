@@ -29,6 +29,10 @@ public class JobExecutionHistoryAspect {
     public void afterRecordHistory(JoinPoint joinPoint) {
         log.info("afterRecordHistory execute");
         JobExecution execution = (JobExecution) joinPoint.getArgs()[0];
+        // Process outcomes have already updated the fenced logical History row.
+        if (execution.getStatus() != ExecutionStatus.SKIPPED && execution.getStatus() != ExecutionStatus.WARNING) {
+            return;
+        }
         try {
             historyService.recordHistory(buildCommand(execution));
         } catch (Exception e) {

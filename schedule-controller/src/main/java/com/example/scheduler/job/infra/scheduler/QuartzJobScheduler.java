@@ -53,10 +53,10 @@ public class QuartzJobScheduler implements JobScheduleCommand, JobScheduleReader
                     .usingJobData("jobType", job.getJobType())         // SHELL, HTTP 등
                     .usingJobData("scheduleType", job.getScheduleType()) // CRON, ONCE 등
                     .storeDurably()
+                    .requestRecovery(true) // 수정: 장애 복구 Trigger도 원래 회차의 DB Lease를 확인하도록 재전달한다.
                     .build();
 
             // 2. Job 등록 (replace = true: 기존 정보 덮어쓰기)
-            scheduler.addJob(jobDetail, true);
 
             // 3. Cron 표현식이 유효한 경우에만 트리거 생성 및 연결
             // (jobType 체크보다는 실제 cron 식 존재 여부가 더 확실함)
@@ -83,14 +83,13 @@ public class QuartzJobScheduler implements JobScheduleCommand, JobScheduleReader
                 CronTrigger trigger = triggerBuilder.build();
 
                 // 4. 기존 트리거가 있으면 갱신(Reschedule), 없으면 신규 등록
-                if (scheduler.checkExists(triggerKey)) {
-                    nextFireTime = scheduler.rescheduleJob(triggerKey, trigger);
-                } else {
-                    nextFireTime = scheduler.scheduleJob(trigger);
-                }
+                // Job과 Trigger를 한 번의 DB 잠금/트랜잭션으로 교체한다.
+                scheduler.scheduleJob(jobDetail, Set.of(trigger), true);
+                nextFireTime = trigger.getNextFireTime();
                 log.info("Trigger Registered: {} (Start: {}, End: {})", triggerKey, job.getScheduleStartTime(), job.getScheduleEndTime());
 
             } else {
+                scheduler.addJob(jobDetail, true);
                 // 5. Cron이 없거나 지워진 경우 -> 기존 트리거 삭제 (수동 모드 전환)
                 if (scheduler.checkExists(triggerKey)) {
                     boolean unscheduled = scheduler.unscheduleJob(triggerKey);
@@ -140,7 +139,10 @@ public class QuartzJobScheduler implements JobScheduleCommand, JobScheduleReader
                 throw new IllegalArgumentException("Job not found Group" + quartzGroup + ", Name : " + jobName);
             }
 
-            scheduler.triggerJob(jobKey);
+            // 수정: 수동 실행은 예약 Cron과 구분되는 논리 실행 요청 ID를 보존한다.
+            JobDataMap requestData = new JobDataMap();
+            requestData.put("executionRequestId", UUID.randomUUID().toString());
+            scheduler.triggerJob(jobKey, requestData);
 
         } catch (SchedulerException e) {
             throw new RuntimeException("Failed to trigger job Group : " + quartzGroup + ", Name : " + jobName, e);

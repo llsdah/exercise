@@ -8,6 +8,10 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 
 public record JobExecutionHistoryResponse(
+        String executionId,
+        String occurrenceKey,
+        java.time.Instant scheduledAt,
+        int attemptCount,
         String tenantId,
         String scheduleGroup,
         String scheduleName,
@@ -22,7 +26,9 @@ public record JobExecutionHistoryResponse(
         LocalDateTime endTime,
         
         Long duration, // 소요시간 (ms) - endTime이 있으면 계산해서 주는 편이 좋음
-        String message // 결과 로그
+        String message, // 결과 로그
+        String triggerNodeId,
+        String fireInstanceId
 ) {
 
     public static JobExecutionHistoryResponse from(JobExecutionHistory history) {
@@ -33,6 +39,7 @@ public record JobExecutionHistoryResponse(
         }
 
         return new JobExecutionHistoryResponse(
+                history.getExecutionId(), history.getOccurrenceKey(), history.getScheduledAt(), history.getAttemptCount(),
                 history.getTenantId(),
                 history.getScheduleGroup(),
                 history.getScheduleName(),
@@ -41,7 +48,7 @@ public record JobExecutionHistoryResponse(
                 history.getStartTime(),
                 history.getEndTime(),
                 duration,
-                history.getMessage()
+                history.getMessage(), history.getTriggerNodeId(), history.getFireInstanceId()
         );
     }
 }

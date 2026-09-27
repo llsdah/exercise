@@ -16,7 +16,7 @@ public class JobExecutionRecorder {
                 execution.getJobName(), execution.getStatus());
     }
 
-    public void recordSimpleHistory(String tenantId, String jobGroup, String jobName) {
+    public void recordSimpleHistory(String tenantId, String jobGroup, String jobName, String message) {
         log.warn("단순 스케줄 이력 기록: [{}]{}.{}", tenantId, jobGroup, jobName);
     }
 }

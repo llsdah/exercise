@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @Entity
-@Table(name = "WFW_SCHEDULE_SKIP_INFO")
+@Table(name = "SCHEDULE_SKIP_INFO")
 @IdClass(JobSkipId.class)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

@@ -1,6 +1,5 @@
 package com.example.scheduler.job.infra.watchdog;
 
-import com.example.scheduler.job.application.schedule.ScheduleKeyPolicy;
 import com.example.scheduler.job.infra.executor.JobProcessManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +30,7 @@ import java.util.List;
  * 이 클래스의 역할:
  *  1) Quartz ThreadPool 상태 관측 (관측만, 제어 X)
  *  2) Executor(Local) 기준 실행 시간 초과 Job 감지
- *  3) kill → interrupt 순서로 종료 시도
+     *  3) Attempt별 Process 종료 요청
  */
 @Slf4j
 @Component
@@ -126,13 +125,7 @@ public class Watchdog {
      * 기준:
      *  - JobProcessManager에 등록된 scheduleStartTime + timeout
      *
-     * 종료 전략:
-     *  1) killJob()  : 실제 강제 종료 (신뢰 가능한 방법)
-     *  2) interrupt(): Quartz cooperative interrupt (best-effort)
-     *
-     * 주의:
-     *  - interrupt는 Job이 InterruptableJob을 구현해야만 의미 있음
-     *  - 따라서 interrupt 실패를 전제로 설계됨
+     * 수정: Attempt 단위로 종료를 요청하고 실행기가 fenced 결과를 기록한다.
      */
     private void cleanupZombieJobs() {
         long now = System.currentTimeMillis();
@@ -144,28 +137,8 @@ public class Watchdog {
                 log.warn("🚨 [Watchdog] Job [{}] exceeded timeout. duration={}s, timeout={}s.",
                         processKey.jobName(), durationSeconds, info.getTimeoutSeconds());
 
-                String tenantId = ScheduleKeyPolicy.extractTenantId(processKey.jobGroup());
-                String group = ScheduleKeyPolicy.extractGroup(processKey.jobGroup());
-
-                // 1️⃣ 실제 비즈니스 프로세스 강제 종료
-                jobProcessManager.killJob(tenantId, group, processKey.jobName());
-
-                // 2️⃣ Quartz Thread 인터럽트 (JobKey 객체 생성 필수)
-                try {
-                    // [수정 포인트] String 두 개가 아니라 JobKey 객체를 생성해야 합니다.
-                    org.quartz.JobKey jobKey = org.quartz.JobKey.jobKey(processKey.jobName(), processKey.jobGroup());
-
-                    // interrupt()는 성공 시 true, 해당 JobKey로 실행 중인 작업이 없으면 false를 반환합니다.
-                    boolean interrupted = scheduler.interrupt(jobKey);
-
-                    if (interrupted) {
-                        log.info("✅ [Watchdog] Successfully sent interrupt signal to JobKey: {}", jobKey);
-                    } else {
-                        log.info("ℹ️ [Watchdog] No active execution found for JobKey: {}. Already terminated?", jobKey);
-                    }
-                } catch (Exception e) {
-                    log.error("❌ [Watchdog] Error while interrupting Quartz job: {}", processKey.jobName(), e);
-                }
+                // 수정: timeout에 해당하는 Attempt만 종료하고 실행기가 fenced 결과를 기록한다.
+                jobProcessManager.killProcess(processKey);
             }
         });
     }

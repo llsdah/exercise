@@ -7,7 +7,7 @@ import com.example.scheduler.job.application.model.JobCommand;
 import com.example.scheduler.job.application.port.JobScheduleCommand;
 import com.example.scheduler.job.application.port.JobScheduleReader;
 import com.example.scheduler.job.domain.*;
-import com.example.scheduler.job.infra.executor.JobProcessManager;
+import com.example.scheduler.history.application.HistoryExecutionCoordinator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -25,7 +25,7 @@ public class JobService {
     private final JobRepository jobRepository;      // Domain Repository (Interface)
     private final JobScheduleCommand jobScheduleCommand;        // Quartz Scheduler Wrapper
     private final JobScheduleReader jobScheduleReader;        // Quartz Scheduler Wrapper
-    private final JobProcessManager jobProcessManager;
+    private final HistoryExecutionCoordinator executionCoordinator;
     private final SchedulerProperties properties;
 
     /**
@@ -108,15 +108,12 @@ public class JobService {
 
     /**
      * [작업 삭제]
-     * 실행 중인 프로세스를 종료하고, 스케줄러와 DB에서 제거합니다.
+     * 실행 중인 프로세스의 종료를 요청하고, 스케줄러와 DB에서 제거합니다.
      */
     @Transactional
     public void deleteJob(String tenantId, String jobGroup, String jobName) {
-        // 1. 실행 중인 프로세스 강제 종료 (OS Level)
-        // JobProcessManager도 TenantId를 인자로 받거나, 내부적으로 Unique Key를 생성해야 안전함.
-        if (jobProcessManager.killJob(tenantId, jobGroup, jobName)) {
-            log.info("Running process killed before deletion: [{}]{}.{}", tenantId, jobGroup, jobName);
-        }
+        // 소유 노드가 처리할 종료 요청을 공유 DB에 기록한다.
+        executionCoordinator.requestCancellation(tenantId, jobGroup, jobName);
 
         // 2. 스케줄러에서 제거
         jobScheduleCommand.delete(tenantId, jobGroup, jobName);
@@ -132,7 +129,8 @@ public class JobService {
      * [작업 강제 종료]
      */
     public boolean killJob(String tenantId, String jobGroup, String jobName) {
-        boolean killed = jobProcessManager.killJob(tenantId, jobGroup, jobName);
+        // 성공은 종료 요청 접수이며 소유 JVM이 heartbeat에서 처리한다.
+        boolean killed = executionCoordinator.requestCancellation(tenantId, jobGroup, jobName) > 0;
         if (!killed) {
             // 단순히 실행 중이 아닌 것인지, 권한이 없는 것인지 구분 필요하지만 여기선 상태 체크
             throw new BusinessException(ErrorCode.JOB_NOT_RUNNING);

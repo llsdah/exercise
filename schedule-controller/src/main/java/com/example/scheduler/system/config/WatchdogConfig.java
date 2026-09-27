@@ -1,32 +1,20 @@
 package com.example.scheduler.system.config;
 
-import com.example.scheduler.system.job.HangCheckJob;
-import org.quartz.*;
-import org.springframework.context.annotation.Bean;
+import com.example.scheduler.global.config.SchedulerProperties;
+import com.example.scheduler.system.application.SystemJobControlService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.Scheduled;
 
+/** Run on every JVM: Quartz execution queries and interrupts are node-local. */
 @Configuration
+@RequiredArgsConstructor
 public class WatchdogConfig {
+    private final SystemJobControlService control;
+    private final SchedulerProperties properties;
 
-    private static final String SYSTEM_GROUP = "SYSTEM::WATCHDOG";
-    private static final String JOB_NAME = "hangCheckJob";
-    private static final String TRIGGER_NAME = "hangCheckTrigger";
-
-    @Bean
-    public JobDetail watchdogJobDetail() {
-        return JobBuilder.newJob(HangCheckJob.class)
-                .withIdentity(JOB_NAME, SYSTEM_GROUP)
-                .storeDurably()
-                .withDescription("Detects and terminates stuck jobs")
-                .build();
-    }
-
-    @Bean
-    public Trigger watchdogJobTrigger(JobDetail watchdogJobDetail) {
-        return TriggerBuilder.newTrigger()
-                .forJob(watchdogJobDetail)
-                .withIdentity(TRIGGER_NAME, SYSTEM_GROUP)
-                .withSchedule(CronScheduleBuilder.cronSchedule("0 * * * * ?"))  // 매분 0초
-                .build();
+    @Scheduled(fixedDelay = 60_000)
+    public void inspectLocalJobs() {
+        control.terminateHungJobs(properties.timeoutSeconds());
     }
 }

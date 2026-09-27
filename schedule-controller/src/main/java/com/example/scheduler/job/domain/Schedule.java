@@ -28,5 +28,4 @@ public class Schedule {
     private final String parameters;
     private final String description;
     private final String jobClass;
-    private final int priority;           // [추가] 실행 우선순위
 }

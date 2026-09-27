@@ -9,6 +9,7 @@ import com.example.scheduler.job.application.schedule.ScheduleKeyPolicy;
 import com.example.scheduler.job.infra.persistence.JobSkipEntity;
 import com.example.scheduler.job.infra.persistence.JobSkipId;
 import com.example.scheduler.job.infra.persistence.JobSkipJpaRepository;
+import com.example.scheduler.job.infra.executor.ShellCommandJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.*;
@@ -42,6 +43,11 @@ public class JobExecutionSkipListener extends TriggerListenerSupport {
      */
     @Override
     public boolean vetoJobExecution(Trigger trigger, JobExecutionContext context) {
+
+        // Recovery must reach the existing History/Lease; it is not a new skip occurrence.
+        if (context.isRecovering() || !ShellCommandJob.class.isAssignableFrom(context.getJobDetail().getJobClass())) {
+            return false;
+        }
 
         String quartzGroup = trigger.getJobKey().getGroup();
         log.info("quartzGroup : {}",quartzGroup);
@@ -94,12 +100,12 @@ public class JobExecutionSkipListener extends TriggerListenerSupport {
                     jobSkipEntity.getTenantId(),
                     jobSkipEntity.getScheduleGroup(),
                     jobSkipEntity.getScheduleName(),
-                    null,                                                                                // fireInstanceId
+                    context.getFireInstanceId(),
                     cronExpression,
-                    cronExpression,                                                                      // command
+                    dataMap.getString("command"),
                     dataMap.getString("parameters"),
-                    dataMap.getString("jobType")      != null ? dataMap.getString("jobType")      : "CRON",
-                    dataMap.getString("scheduleType") != null ? dataMap.getString("scheduleType") : "SHELL",
+                    dataMap.getString("jobType")      != null ? dataMap.getString("jobType")      : "SHELL",
+                    dataMap.getString("scheduleType") != null ? dataMap.getString("scheduleType") : "CRON",
                     0L,                                                                                  // timeout (스킵이므로 불필요)
                     jobSkipEntity.getSkipTime()                                                          // scheduledFireTime
             );

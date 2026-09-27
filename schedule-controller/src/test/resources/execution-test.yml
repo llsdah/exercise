@@ -1,0 +1,33 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:execution-tests;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=5000
+    username: sa
+    password: ''
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  quartz:
+    scheduler-name: execution-test-cluster
+    properties:
+      org.quartz.scheduler.instanceId: AUTO
+      org.quartz.scheduler.idleWaitTime: 1000
+      org.quartz.jobStore.isClustered: true
+      org.quartz.jobStore.clusterCheckinInterval: 1000
+      org.quartz.jobStore.acquireTriggersWithinLock: true
+    auto-startup: false
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: always
+app:
+  jpa:
+    table-prefix: CHECK_
+  scheduler:
+    use-meta-table: true
+    check-meta-on-execute: true
+    timeout-seconds: 60
+  execution:
+    node-id: node-a
+    lease-ttl: 30s
+    heartbeat-interval: 5s
+    sweep-interval-ms: 3600000

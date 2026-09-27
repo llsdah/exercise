@@ -7,8 +7,11 @@ import org.springframework.data.repository.query.Param;
 
 // 1. JPA Interface
 // ID 타입 변경: Long -> JobHistoryId
-interface JobExecutionHistoryJpaRepository extends JpaRepository<JobExecutionHistoryEntity, JobExecutionHistoryId>, JpaSpecificationExecutor<JobExecutionHistoryEntity> {
+public interface JobExecutionHistoryJpaRepository extends JpaRepository<JobExecutionHistoryEntity, String>, JpaSpecificationExecutor<JobExecutionHistoryEntity> {
 
+
+    java.util.Optional<JobExecutionHistoryEntity> findByTenantIdAndScheduleGroupAndScheduleNameAndOccurrenceKey(
+            String tenantId, String scheduleGroup, String scheduleName, String occurrenceKey);
 
     @Query("SELECT MAX(e.executionCount) FROM JobExecutionHistoryEntity e " +
             "WHERE e.tenantId = :tenantId " +
