@@ -1,9 +1,11 @@
 package com.example.scheduler.job.api.dto;
 
+import com.example.scheduler.job.domain.MisfirePolicy;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotBlank;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 public record ScheduleRequest(
@@ -39,5 +41,7 @@ public record ScheduleRequest(
         LocalDateTime scheduleStartTime,
 
         @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-        LocalDateTime scheduleEndTime
+        LocalDateTime scheduleEndTime,
+        List<String> dependsOn,
+        MisfirePolicy misfirePolicy
 ) {}

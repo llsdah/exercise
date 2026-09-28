@@ -1,7 +1,11 @@
 package com.example.scheduler.history.infra.persistent;
 
-import com.example.scheduler.history.domain.ExecutionStatus;
-import com.example.scheduler.history.domain.JobExecutionHistory;
+import com.example.scheduler.execution.infra.persistence.JobExecutionHistoryJpaRepository;
+
+import com.example.scheduler.execution.infra.persistence.JobExecutionHistoryEntity;
+
+import com.example.scheduler.execution.domain.ExecutionStatus;
+import com.example.scheduler.execution.domain.LogicalExecution;
 import com.example.scheduler.history.domain.JobExecutionHistoryRepository;
 import com.example.scheduler.history.domain.JobExecutionHistorySearchCondition;
 import jakarta.persistence.criteria.Predicate;
@@ -25,7 +29,7 @@ public class JobExecutionHistoryRepositoryImpl implements JobExecutionHistoryRep
     private final JobExecutionHistoryJpaRepository jpaRepository;
 
     @Override
-    public void save(JobExecutionHistory history) {
+    public void save(LogicalExecution history) {
         jpaRepository.save(JobExecutionHistoryEntity.from(history));
     }
 
@@ -38,7 +42,7 @@ public class JobExecutionHistoryRepositoryImpl implements JobExecutionHistoryRep
     }
 
     @Override
-    public Page<JobExecutionHistory> findByConditions(JobExecutionHistorySearchCondition cond, Pageable pageable) {
+    public Page<LogicalExecution> findByConditions(JobExecutionHistorySearchCondition cond, Pageable pageable) {
         Specification<JobExecutionHistoryEntity> spec = Specification.allOf(handlerTenantId(cond.tenantId()))
                 .and(handlerScheduleGroup(cond.scheduleGroup()))
                 .and(handlerScheduleName(cond.scheduleName()))

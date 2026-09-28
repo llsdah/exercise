@@ -1,6 +1,8 @@
 package com.example.scheduler.history.application;
 
-import com.example.scheduler.history.domain.JobExecutionHistory;
+import com.example.scheduler.execution.domain.ExecutionStatus;
+
+import com.example.scheduler.execution.domain.LogicalExecution;
 import com.example.scheduler.history.domain.JobExecutionHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,8 +19,8 @@ public class JobExecutionHistoryService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordHistory(JobExecutionHistoryCommand command) {
 
-        if (command.status() != com.example.scheduler.history.domain.ExecutionStatus.SKIPPED
-                && command.status() != com.example.scheduler.history.domain.ExecutionStatus.WARNING) {
+        if (command.status() != com.example.scheduler.execution.domain.ExecutionStatus.SKIPPED
+                && command.status() != com.example.scheduler.execution.domain.ExecutionStatus.WARNING) {
             throw new IllegalArgumentException("Process results must update History through a fenced lease");
         }
         // 1. 해당 Tenant + 그룹 + 이름의 작업이 몇 번째 실행인지 카운트
@@ -30,7 +32,7 @@ public class JobExecutionHistoryService {
         ) + 1;
 
         // 2. 도메인/엔티티 생성
-        JobExecutionHistory history = JobExecutionHistory.builder()
+        LogicalExecution history = LogicalExecution.builder()
                 .tenantId(command.tenantId())        // [신규]
                 .scheduleGroup(command.jobGroup())
                 .scheduleName(command.jobName())

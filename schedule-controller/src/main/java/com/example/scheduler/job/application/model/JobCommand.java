@@ -1,6 +1,9 @@
 package com.example.scheduler.job.application.model;
 
+import com.example.scheduler.job.domain.MisfirePolicy;
+
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * [Service Command]
@@ -29,5 +32,7 @@ public record JobCommand(
         LocalDateTime endTime,
 
         // [요청자]
-        String regUserId
+        String regUserId,
+        List<String> dependsOn,
+        MisfirePolicy misfirePolicy
 ) {}

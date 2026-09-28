@@ -1,14 +1,15 @@
 package com.example.scheduler.job.infra.executor;
 
-// 수정: 실행 서비스/도메인/감시 어댑터를 각 계층의 패키지에서 참조한다.
-import com.example.scheduler.history.application.HistoryExecutionCoordinator;
+import com.example.scheduler.execution.application.ExecutionCoordinator;
+import com.example.scheduler.execution.domain.LogicalExecution;
+import com.example.scheduler.global.logging.ExecutionLogContext;
 import com.example.scheduler.lease.domain.LeaseClaim;
 import com.example.scheduler.lease.infra.watchdog.ExecutionLeaseMonitor;
 import com.example.scheduler.global.config.SchedulerProperties;
-import com.example.scheduler.history.domain.ExecutionStatus;
-import com.example.scheduler.history.domain.HistoryExecutionRequest;
+import com.example.scheduler.execution.domain.ExecutionRequest;
 import com.example.scheduler.job.application.model.JobExecution;
 import com.example.scheduler.job.application.schedule.ScheduleKeyPolicy;
+import com.example.scheduler.resource.application.capacity.NodeExecutionCapacity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.*;
@@ -21,16 +22,15 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-// 수정: Lease/Attempt 확정 후에만 Process를 실행하며 모든 완료 기록은 fencing 검증을 거친다.
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ShellCommandJob implements Job, InterruptableJob {
     private final JobProcessManager jobProcessManager;
-    private final HistoryExecutionCoordinator coordinator;
+    private final ExecutionCoordinator coordinator;
     private final ExecutionLeaseMonitor monitor;
     private final SchedulerProperties schedulerProperties;
-    private final com.example.scheduler.resource.application.NodeExecutionCapacity capacity;
+    private final NodeExecutionCapacity capacity;
     private volatile boolean interrupted;
 
     @Override
@@ -41,13 +41,13 @@ public class ShellCommandJob implements Job, InterruptableJob {
         String occurrence = context.getMergedJobDataMap().getString("executionRequestId");
         occurrence = occurrence == null ? "scheduled:" + scheduledAt.toEpochMilli() : "manual:" + occurrence;
         LeaseClaim claim;
-        com.example.scheduler.resource.application.NodeExecutionCapacity.Slot slot = null;
+        NodeExecutionCapacity.Slot slot = null;
         try {
             try {
-                String id = coordinator.ensureExecution(new HistoryExecutionRequest(info.getTenantId(), info.getJobGroup(), info.getJobName(),
+                String id = coordinator.ensureExecution(new ExecutionRequest(info.getTenantId(), info.getJobGroup(), info.getJobName(),
                         occurrence, scheduledAt, info.getFireInstanceId(), info.getScheduleType(), info.getJobType(),
                         info.getCronExpression(), info.getCommand(), info.getParameters()));
-                try (var trace = com.example.scheduler.global.logging.ExecutionLogContext.open(id, null,
+                try (var trace = ExecutionLogContext.open(id, null,
                         coordinator.findExecution(id).orElseThrow().getTriggerNodeId(), null, null, null)) {
                     log.info("Quartz execution resolved");
                     slot = capacity.tryAcquire().orElse(null);
@@ -66,7 +66,7 @@ public class ShellCommandJob implements Job, InterruptableJob {
         } finally { if (slot != null) slot.close(); }
     }
 
-    public void executeRetry(com.example.scheduler.history.domain.JobExecutionHistory execution, LeaseClaim claim, com.example.scheduler.resource.application.NodeExecutionCapacity.Slot slot) {
+    public void executeRetry(LogicalExecution execution, LeaseClaim claim, NodeExecutionCapacity.Slot slot) {
         var info = JobExecution.of(execution.getTenantId(), execution.getScheduleGroup(), execution.getScheduleName(),
                 execution.getFireInstanceId(), execution.getCronExpression(), execution.getCommand(), execution.getParameters(),
                 execution.getJobType(), execution.getScheduleType(), schedulerProperties.timeoutSeconds(), LocalDateTime.now());
@@ -93,17 +93,17 @@ public class ShellCommandJob implements Job, InterruptableJob {
                 LocalDateTime.ofInstant(scheduledInstant(context), ZoneId.systemDefault()));
     }
 
-    private void executeProcess(JobExecution info, String quartzGroup, LeaseClaim claim, com.example.scheduler.resource.application.NodeExecutionCapacity.Slot slot) {
+    private void executeProcess(JobExecution info, String quartzGroup, LeaseClaim claim, NodeExecutionCapacity.Slot slot) {
         coordinator.verifyLocalWorker(claim);
         capacity.requireLocalSlot(slot);
         var execution = coordinator.findExecution(claim.executionId()).orElseThrow();
-        try (var trace = com.example.scheduler.global.logging.ExecutionLogContext.open(claim.executionId(),
+        try (var trace = ExecutionLogContext.open(claim.executionId(),
                 claim.attemptId(), execution.getTriggerNodeId(), null, claim.token(), null)) {
             runProcess(info, quartzGroup, claim, slot);
         }
     }
 
-    private void runProcess(JobExecution info, String quartzGroup, LeaseClaim claim, com.example.scheduler.resource.application.NodeExecutionCapacity.Slot slot) {
+    private void runProcess(JobExecution info, String quartzGroup, LeaseClaim claim, NodeExecutionCapacity.Slot slot) {
         Process process = null;
         Thread outputReader = null;
         StringBuffer output = new StringBuffer();
@@ -111,6 +111,7 @@ public class ShellCommandJob implements Job, InterruptableJob {
         String uncertainty = null;
         boolean startInvoked = false;
         boolean startSucceeded = false;
+        boolean drainDeferred = false;
         String startFailure = null;
         try (var guard = monitor.watch(claim)) {
             ProcessBuilder builder = createProcessBuilder(info.getCommand(), info.getParameters());
@@ -124,11 +125,14 @@ public class ShellCommandJob implements Job, InterruptableJob {
             // Commit launch intent before the OS call. A crash in this gap remains inconclusive.
             coordinator.launchRequested(claim);
             if (!guard.valid() || interrupted) throw new IllegalStateException("Execution right lost before process start");
-            org.slf4j.MDC.put("workerNodeId", claim.nodeId());
-            guard.captureContext();
-            log.info("Invoking ProcessBuilder.start");
-            startInvoked = true;
-            process = slot.start(builder);
+            process = slot.start(builder, () -> {
+                // Recheck after waiting for the Node row lock; Drain never extends execution rights.
+                if (!guard.valid() || interrupted) throw new IllegalStateException("Execution right lost before process start");
+                org.slf4j.MDC.put("workerNodeId", claim.nodeId());
+                guard.captureContext();
+                log.info("Invoking ProcessBuilder.start");
+            }, invocation -> coordinator.startProcess(claim, invocation));
+            startInvoked = slot.startInvoked();
             startSucceeded = true;
             org.slf4j.MDC.put("pid", Long.toString(process.pid()));
             guard.captureContext();
@@ -137,7 +141,7 @@ public class ShellCommandJob implements Job, InterruptableJob {
             coordinator.started(claim, process.pid(), process.info().startInstant().orElse(Instant.now()));
             Process running = process;
             // 수정: 출력 소비가 timeout/heartbeat 검사를 막지 않도록 별도 가상 스레드에서 읽는다.
-            outputReader = Thread.ofVirtual().start(com.example.scheduler.global.logging.ExecutionLogContext.propagate(() -> readProcessOutput(running, output)));
+            outputReader = Thread.ofVirtual().start(ExecutionLogContext.propagate(() -> readProcessOutput(running, output)));
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(info.getTimeout());
             while (!process.waitFor(200, TimeUnit.MILLISECONDS)) {
                 if (!guard.valid() || interrupted || System.nanoTime() >= deadline) {
@@ -148,7 +152,12 @@ public class ShellCommandJob implements Job, InterruptableJob {
             if (!guard.valid()) uncertainty = "Lease lost";
             if (interrupted) uncertainty = "Execution interrupted";
             if (uncertainty == null) exitCode = process.exitValue();
+        } catch (com.example.scheduler.node.domain.NodeDrainingException draining) {
+            drainDeferred = !slot.startInvoked() && !startSucceeded;
+            if (!drainDeferred) throw draining;
+            log.info("Process admission deferred by Drain: {}", draining.getMessage());
         } catch (Exception failure) {
+            startInvoked = slot.startInvoked();
             // An exception thrown by start() did not return a process; do not invent an OS exit code.
             if (startSucceeded) uncertainty = failure.toString();
             else startFailure = (startInvoked ? "ProcessBuilder.start() failed: " : "Process was not started: ") + failure;
@@ -157,16 +166,22 @@ public class ShellCommandJob implements Job, InterruptableJob {
         } finally {
             if (process != null) {
                 var processKey = new JobProcessManager.ProcessKey(quartzGroup, info.getJobName(), claim.attemptId());
+                boolean terminationConfirmed = !process.isAlive();
                 if (jobProcessManager.terminationRequested(processKey)) uncertainty = "Process termination requested";
-                if (process.isAlive()) jobProcessManager.killProcess(processKey);
+                if (process.isAlive()) terminationConfirmed = jobProcessManager.killProcess(processKey);
+                else if (jobProcessManager.terminationRequested(processKey))
+                    terminationConfirmed = jobProcessManager.terminationConfirmed(processKey);
                 // Registration itself may have failed; do not lose the process handle.
                 if (process.isAlive() && !jobProcessManager.getRunningProcesses().containsKey(processKey)) {
                     process.toHandle().descendants().forEach(ProcessHandle::destroyForcibly);
                     process.destroyForcibly();
                 }
-                if (process.isAlive()) uncertainty = "Process termination was not confirmed";
+                if (!terminationConfirmed) {
+                    uncertainty = "Process termination was not confirmed";
+                    exitCode = null;
+                }
                 if (!process.isAlive()) {
-                    exitCode = process.exitValue();
+                    if (terminationConfirmed) exitCode = process.exitValue();
                     jobProcessManager.remove(quartzGroup, info.getJobName(), claim.attemptId());
                 }
             }
@@ -183,6 +198,11 @@ public class ShellCommandJob implements Job, InterruptableJob {
             }
         }
         try {
+            if (drainDeferred) {
+                coordinator.deferForDrain(claim);
+                log.info("Drain deferral recorded; Process was not started");
+                return;
+            }
             if (!startSucceeded) coordinator.startFailed(claim, startFailure == null ? "Process was not started" : startFailure, output.toString(), startInvoked);
             else coordinator.finish(claim, exitCode, uncertainty, output.toString());
             log.info("Process outcome recorded: exitCode={}, reason={}", exitCode, startSucceeded ? uncertainty : startFailure);

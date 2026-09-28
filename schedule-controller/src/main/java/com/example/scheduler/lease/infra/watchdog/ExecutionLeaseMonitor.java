@@ -1,16 +1,19 @@
 package com.example.scheduler.lease.infra.watchdog;
 
-import com.example.scheduler.history.application.HistoryExecutionCoordinator;
+import com.example.scheduler.execution.application.ExecutionCoordinator;
+import com.example.scheduler.global.logging.ExecutionLogContext;
 import com.example.scheduler.lease.domain.LeaseClaim;
 import com.example.scheduler.global.config.ExecutionProperties;
 
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import java.util.concurrent.*;
+import java.util.*;
 
 // 수정: 스케줄링/스레드 관리는 infra에 두고 실행 서비스로 Lease 갱신과 만료 처리를 요청한다.
 @Component
@@ -18,13 +21,13 @@ import java.util.concurrent.*;
 @EnableConfigurationProperties(ExecutionProperties.class)
 @Slf4j
 public class ExecutionLeaseMonitor {
-    private final HistoryExecutionCoordinator coordinator;
+    private final ExecutionCoordinator coordinator;
     private final ExecutionProperties properties;
     private final long guardTtlNanos;
     private final ScheduledExecutorService heartbeats = Executors.newScheduledThreadPool(2,
             Thread.ofPlatform().daemon().name("execution-lease-", 0).factory());
 
-    public ExecutionLeaseMonitor(HistoryExecutionCoordinator coordinator, ExecutionProperties properties) {
+    public ExecutionLeaseMonitor(ExecutionCoordinator coordinator, ExecutionProperties properties) {
         this.coordinator = coordinator;
         this.properties = properties;
         guardTtlNanos = properties.leaseTtl().toNanos();
@@ -52,9 +55,9 @@ public class ExecutionLeaseMonitor {
         private volatile long validUntil;
         private final LeaseClaim claim;
         private final ScheduledFuture<?> task;
-        private volatile java.util.Map<String, String> logContext = org.slf4j.MDC.getCopyOfContextMap();
+        private volatile Map<String, String> logContext = MDC.getCopyOfContextMap();
 
-        public void captureContext() { logContext = org.slf4j.MDC.getCopyOfContextMap(); }
+        public void captureContext() { logContext = MDC.getCopyOfContextMap(); }
 
         private Guard(LeaseClaim claim) {
             this.claim = claim;
@@ -64,7 +67,7 @@ public class ExecutionLeaseMonitor {
         }
 
         private void pulse() {
-            try (var trace = com.example.scheduler.global.logging.ExecutionLogContext.restore(logContext)) { pulseWithContext(); }
+            try (var trace = ExecutionLogContext.restore(logContext)) { pulseWithContext(); }
         }
 
         private void pulseWithContext() {

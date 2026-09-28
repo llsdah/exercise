@@ -1,5 +1,5 @@
 package com.example.scheduler.reconciliation.domain;
-import com.example.scheduler.history.domain.ExecutionStatus;
+import com.example.scheduler.execution.domain.ExecutionStatus;
 import java.time.Instant;
 /** status is current logical state; result is the immutable reconciliation decision. */
 public record ReconciliationResult(String reconciliationId, String executionId, String attemptId,

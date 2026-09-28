@@ -1,11 +1,13 @@
 package com.example.scheduler.job.domain;
 
+import com.example.scheduler.dependency.domain.DependencyNames;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @ToString
@@ -28,6 +30,13 @@ public class Job {
     private String cronExpression;
     private String command;
     private String parameters;
+    private List<String> dependsOn = List.of();
+    private MisfirePolicy misfirePolicy = MisfirePolicy.FIRE_ONCE;
+    public Job withSchedulingSemantics(List<String> dependencies, MisfirePolicy policy) {
+        dependsOn = DependencyNames.normalize(dependencies);
+        misfirePolicy = policy == null ? MisfirePolicy.FIRE_ONCE : policy;
+        return this;
+    }
     private LocalDateTime scheduleStartTime; // DB: SCHEDULE_START_TIME (이름 일치)
     private LocalDateTime scheduleEndTime;   // DB: SCHEDULE_END_TIME (이름 일치)
 

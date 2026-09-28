@@ -9,7 +9,7 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping({"/api/histories/executions", "/api/executions"})
+@RequestMapping({"/api/executions"})
 public class ReconciliationController {
     private final ReconciliationService service;
 

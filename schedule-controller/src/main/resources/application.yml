@@ -9,8 +9,8 @@ spring:
   datasource:
     hikari:
       maximum-pool-size: 30 # Quartz Thread(20) + Web Request 여유분(10)
-    url: ${SCHEDULER_DB_URL}
     driverClassName: ${SCHEDULER_DB_DRIVER:org.h2.Driver}
+    # url: ${SCHEDULER_DB_URL}
     username: ${SCHEDULER_DB_USERNAME:sa}
     password: ${SCHEDULER_DB_PASSWORD:}
 
@@ -66,9 +66,15 @@ management:
   endpoints:
     web:
       exposure:
-        include: shutdown, health, info
+        include: shutdown, health, info, metrics
 
 app:
+  dependency:
+    business-time-zone: Asia/Seoul # Identical on every node; one Cron occurrence per business date
+  node:
+    heartbeat-interval: 5s
+    offline-timeout: 30s
+    sweep-interval: 5s
   node-capacity:
     max-concurrent-processes: 2
     cpu-threshold: 0.85 # System CPU load, 0..1; equality blocks admission
@@ -82,7 +88,8 @@ app:
     workers: 2
     sweep-interval-ms: 5000
   execution:
-    # 수정: 노드별 기본 ID는 기동 시 UUID 생성. 여러 노드에서 같은 ID를 사용하지 않는다.
+    node-id: ${BATCH_NODE_ID:}
+    allow-ephemeral-node-id: false
     lease-ttl: 30s
     heartbeat-interval: 10s
     sweep-interval-ms: 5000

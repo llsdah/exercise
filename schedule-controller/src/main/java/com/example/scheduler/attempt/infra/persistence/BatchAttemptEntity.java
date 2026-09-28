@@ -1,5 +1,7 @@
 package com.example.scheduler.attempt.infra.persistence;
 
+import com.example.scheduler.execution.domain.ExecutionStatus;
+
 import com.example.scheduler.attempt.domain.BatchAttempt;
 import com.example.scheduler.attempt.domain.AttemptState;
 import com.example.scheduler.attempt.domain.ProcessLaunchState;
@@ -41,12 +43,24 @@ public class BatchAttemptEntity {
     public void startFailed(String reason, Instant now, boolean startInvoked) {
         if (startInvoked) workerNodeId = nodeId;
         processLaunchState = ProcessLaunchState.START_FAILED;
-        finish(com.example.scheduler.history.domain.ExecutionStatus.FAILURE, null, reason, now);
+        finish(com.example.scheduler.execution.domain.ExecutionStatus.FAILURE, null, reason, now);
     }
 
     public void heartbeat(Instant now) { heartbeatAt = now; }
 
-    public void finish(com.example.scheduler.history.domain.ExecutionStatus outcome, Integer exitCode, String reason, Instant now) {
+    public void cancelledBeforeStart(Instant now) {
+        processLaunchState = ProcessLaunchState.NOT_STARTED;
+        finish(ExecutionStatus.CANCELLED, null, "Cancelled before process start", now);
+    }
+
+    public void deferredByDrain(Instant now) {
+        status = AttemptState.DEFERRED;
+        processLaunchState = ProcessLaunchState.NOT_STARTED;
+        endedAt = now;
+        // No OS invocation, worker, exit code or failure. Keep the admission audit and token.
+    }
+
+    public void finish(com.example.scheduler.execution.domain.ExecutionStatus outcome, Integer exitCode, String reason, Instant now) {
         status = AttemptState.resultOf(outcome);
         this.exitCode = exitCode;
         failureReason = reason == null ? null : reason.substring(0, Math.min(1000, reason.length()));

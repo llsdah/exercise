@@ -26,6 +26,8 @@ public class Schedule {
     private final String cronExpression;
     private final String command;
     private final String parameters;
+    private final java.util.List<String> dependsOn;
+    private final MisfirePolicy misfirePolicy;
     private final String description;
     private final String jobClass;
 }

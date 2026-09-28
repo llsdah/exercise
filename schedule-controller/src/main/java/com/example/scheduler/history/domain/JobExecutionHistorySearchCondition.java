@@ -1,5 +1,7 @@
 package com.example.scheduler.history.domain;
 
+import com.example.scheduler.execution.domain.ExecutionStatus;
+
 import java.time.LocalDateTime;
 
 public record JobExecutionHistorySearchCondition(

@@ -1,5 +1,6 @@
 package com.example.scheduler.job.infra.scheduler;
 
+import com.example.scheduler.dependency.domain.DependencyNames;
 import com.example.scheduler.global.api.code.ErrorCode;
 import com.example.scheduler.global.error.BusinessException;
 import com.example.scheduler.job.application.port.JobScheduleReader;
@@ -7,6 +8,7 @@ import com.example.scheduler.job.application.schedule.ScheduleKeyPolicy;
 import com.example.scheduler.job.domain.Job;
 import com.example.scheduler.job.application.port.JobScheduleCommand;
 import com.example.scheduler.job.domain.JobStatus;
+import com.example.scheduler.job.domain.MisfirePolicy;
 import com.example.scheduler.job.domain.Schedule;
 import com.example.scheduler.job.infra.executor.ShellCommandJob;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +54,8 @@ public class QuartzJobScheduler implements JobScheduleCommand, JobScheduleReader
                     .usingJobData("parameters", job.getParameters())
                     .usingJobData("jobType", job.getJobType())         // SHELL, HTTP 등
                     .usingJobData("scheduleType", job.getScheduleType()) // CRON, ONCE 등
+                    .usingJobData("dependsOn", DependencyNames.encode(job.getDependsOn()))
+                    .usingJobData("misfirePolicy", job.getMisfirePolicy().name())
                     .storeDurably()
                     .requestRecovery(true) // 수정: 장애 복구 Trigger도 원래 회차의 DB Lease를 확인하도록 재전달한다.
                     .build();
@@ -66,7 +70,8 @@ public class QuartzJobScheduler implements JobScheduleCommand, JobScheduleReader
                 TriggerBuilder<CronTrigger> triggerBuilder = TriggerBuilder.newTrigger()
                         .withIdentity(triggerKey)
                         .forJob(jobDetail)
-                        .withSchedule(CronScheduleBuilder.cronSchedule(job.getCronExpression()));
+                        .usingJobData(jobDetail.getJobDataMap())
+                        .withSchedule(cronSchedule(job));
 
                 // 시작 시간 설정
                 if (job.getScheduleStartTime() != null) {
@@ -83,7 +88,6 @@ public class QuartzJobScheduler implements JobScheduleCommand, JobScheduleReader
                 CronTrigger trigger = triggerBuilder.build();
 
                 // 4. 기존 트리거가 있으면 갱신(Reschedule), 없으면 신규 등록
-                // Job과 Trigger를 한 번의 DB 잠금/트랜잭션으로 교체한다.
                 scheduler.scheduleJob(jobDetail, Set.of(trigger), true);
                 nextFireTime = trigger.getNextFireTime();
                 log.info("Trigger Registered: {} (Start: {}, End: {})", triggerKey, job.getScheduleStartTime(), job.getScheduleEndTime());
@@ -105,6 +109,15 @@ public class QuartzJobScheduler implements JobScheduleCommand, JobScheduleReader
         }
 
         return nextFireTime == null ? null : this.toLocalDateTime(nextFireTime);
+    }
+
+    public static CronScheduleBuilder cronSchedule(Job job) {
+        var builder = CronScheduleBuilder.cronSchedule(job.getCronExpression());
+        return switch (job.getMisfirePolicy()) {
+            case FIRE_ONCE -> builder.withMisfireHandlingInstructionFireAndProceed();
+            case SKIP -> builder.withMisfireHandlingInstructionDoNothing();
+            case IGNORE -> builder.withMisfireHandlingInstructionIgnoreMisfires();
+        };
     }
 
     @Override
@@ -365,7 +378,9 @@ public class QuartzJobScheduler implements JobScheduleCommand, JobScheduleReader
                 .description(jobDetail.getDescription())
                 .jobClass(jobDetail.getJobClass().getSimpleName())
                 .command(dataMap.getString("command"))      // [중요]
-                .parameters(dataMap.getString("parameters"))// [중요]
+                .parameters(dataMap.getString("parameters"))
+                .dependsOn(DependencyNames.decode(dataMap.getString("dependsOn")))
+                .misfirePolicy(dataMap.containsKey("misfirePolicy") ? MisfirePolicy.valueOf(dataMap.getString("misfirePolicy")) : MisfirePolicy.FIRE_ONCE)// [중요]
                 .build();
     }
 

@@ -24,6 +24,7 @@ public class JobProcessManager {
         private final String attemptId;
         private final Map<String, String> logContext = org.slf4j.MDC.getCopyOfContextMap();
         private volatile boolean terminationRequested;
+        private volatile boolean terminationConfirmed;
     }
 
     private final Map<ProcessKey, RunningJobInfo> runningProcesses = new ConcurrentHashMap<>();
@@ -41,6 +42,11 @@ public class JobProcessManager {
     public boolean terminationRequested(ProcessKey key) {
         RunningJobInfo info = runningProcesses.get(key);
         return info != null && info.terminationRequested;
+    }
+
+    public boolean terminationConfirmed(ProcessKey key) {
+        RunningJobInfo info = runningProcesses.get(key);
+        return info != null && info.terminationConfirmed;
     }
 
     public boolean killJob(String tenant, String group, String name) {
@@ -67,7 +73,8 @@ public class JobProcessManager {
             descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly);
             if (process.isAlive()) process.destroyForcibly();
             process.waitFor(1, TimeUnit.SECONDS);
-            return !process.isAlive() && descendants.stream().noneMatch(ProcessHandle::isAlive);
+            info.terminationConfirmed = !process.isAlive() && descendants.stream().noneMatch(ProcessHandle::isAlive);
+            return info.terminationConfirmed;
         } catch (InterruptedException failure) {
             descendants.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly);
             if (process.isAlive()) process.destroyForcibly();

@@ -1,30 +1,38 @@
 package com.example.scheduler.system.application;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import oshi.SystemInfo;
-import oshi.hardware.CentralProcessor;
-import oshi.hardware.GlobalMemory;
+import java.lang.management.ManagementFactory;
 
-@Slf4j
+/** Single source for node OS measurements; execution admission belongs to NodeExecutionCapacity. */
 @Service
 public class SystemMonitorService {
+    public record Snapshot(double cpuLoad, long availableMemoryBytes, long totalMemoryBytes) { }
 
-    private final SystemInfo systemInfo = new SystemInfo();
+    private final com.sun.management.OperatingSystemMXBean os;
+    private volatile Snapshot latest = new Snapshot(Double.NaN, -1, -1);
 
-    // CPU 사용률 체크 (임계치: 80% 이상이면 위험)
+    public SystemMonitorService() {
+        var bean = ManagementFactory.getOperatingSystemMXBean();
+        os = bean instanceof com.sun.management.OperatingSystemMXBean supported ? supported : null;
+    }
+
+    /** CPU is 0..1; memory is physical bytes, not JVM heap. No sampling sleep. */
+    public Snapshot snapshot() {
+        if (os == null) return new Snapshot(Double.NaN, -1, -1);
+        var sample = new Snapshot(os.getCpuLoad(), os.getFreeMemorySize(), os.getTotalMemorySize());
+        latest = sample;
+        return sample;
+    }
+
+    /** Observation only: does not trigger another OS measurement. */
+    public Snapshot latestSnapshot() { return latest; }
+
+    /** Legacy monitoring thresholds; the optional Quartz veto listener remains unregistered. */
     public boolean isSystemOverloaded() {
-        CentralProcessor processor = systemInfo.getHardware().getProcessor();
-        double cpuLoad = processor.getSystemCpuLoad(1000) * 100; // 1초간 측정
-        
-        GlobalMemory memory = systemInfo.getHardware().getMemory();
-        long availableMem = memory.getAvailable();
-        long totalMem = memory.getTotal();
-        double memUsage = (1.0 - (double) availableMem / totalMem) * 100;
-
-        // log.info("System Status - CPU: {}%, Memory: {}%", String.format("%.2f", cpuLoad), String.format("%.2f", memUsage));
-
-        // 정책: CPU 80% 이상이거나 메모리 90% 이상 사용 중이면 과부하로 판단
-        return cpuLoad > 80.0 || memUsage > 90.0;
+        var metrics = snapshot();
+        if (!Double.isFinite(metrics.cpuLoad()) || metrics.cpuLoad() < 0
+                || metrics.availableMemoryBytes() < 0 || metrics.totalMemoryBytes() <= 0) return true;
+        double memoryUsage = 1.0 - (double) metrics.availableMemoryBytes() / metrics.totalMemoryBytes();
+        return metrics.cpuLoad() > 0.80 || memoryUsage > 0.90;
     }
 }

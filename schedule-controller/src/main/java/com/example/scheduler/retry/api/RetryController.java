@@ -8,7 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
-@RequestMapping({"/api/histories/executions", "/api/executions"})
+@RequestMapping({"/api/executions"})
 public class RetryController {
     private final RetryService service;
     public record RetryRequest(@NotBlank String attemptId) {}

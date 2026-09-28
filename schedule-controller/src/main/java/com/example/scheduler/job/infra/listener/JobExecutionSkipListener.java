@@ -2,7 +2,7 @@ package com.example.scheduler.job.infra.listener;
 
 import com.example.scheduler.history.application.JobExecutionHistoryCommand;
 import com.example.scheduler.history.application.JobExecutionHistoryService;
-import com.example.scheduler.history.domain.ExecutionStatus;
+import com.example.scheduler.execution.domain.ExecutionStatus;
 import com.example.scheduler.job.application.event.JobExecutionCompletedEvent;
 import com.example.scheduler.job.application.model.JobExecution;
 import com.example.scheduler.job.application.schedule.ScheduleKeyPolicy;

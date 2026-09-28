@@ -1,7 +1,7 @@
 package com.example.scheduler.retry.domain;
-import com.example.scheduler.history.domain.JobExecutionHistory;
+import com.example.scheduler.execution.domain.LogicalExecution;
 import com.example.scheduler.lease.domain.LeaseClaim;
 @FunctionalInterface
 public interface RetryExecutor {
-    void execute(JobExecutionHistory execution, LeaseClaim claim, com.example.scheduler.resource.application.NodeExecutionCapacity.Slot slot);
+    void execute(LogicalExecution execution, LeaseClaim claim, com.example.scheduler.resource.application.capacity.NodeExecutionCapacity.Slot slot);
 }

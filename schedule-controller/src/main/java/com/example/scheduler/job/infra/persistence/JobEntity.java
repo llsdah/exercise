@@ -43,6 +43,11 @@ public class JobEntity {
     @Lob
     @Column(name = "PARAMETERS")
     private String parameters;
+    @Lob @Column(name = "DEPENDS_ON")
+    private String dependsOn;
+    @Enumerated(EnumType.STRING) @Column(name = "MISFIRE_POLICY", length = 20, nullable = false)
+    @Builder.Default
+    private com.example.scheduler.job.domain.MisfirePolicy misfirePolicy = com.example.scheduler.job.domain.MisfirePolicy.FIRE_ONCE;
 
     @Column(name = "DESCRIPTION")
     private String description;
@@ -111,6 +116,7 @@ public class JobEntity {
                 .cronExpression(job.getCronExpression())
                 .command(job.getCommand())
                 .parameters(job.getParameters())
+                .dependsOn(com.example.scheduler.dependency.domain.DependencyNames.encode(job.getDependsOn())).misfirePolicy(job.getMisfirePolicy())
                 .description(job.getDescription())
                 .scheduleStartTime(job.getScheduleStartTime())
                 .scheduleEndTime(job.getScheduleEndTime())
@@ -144,6 +150,6 @@ public class JobEntity {
                 this.regOccurDttm != null ? LocalDateTime.parse(this.regOccurDttm, formatter) : null,
                 this.modifyUserId,
                 this.modifyOccurDttm != null ? LocalDateTime.parse(this.modifyOccurDttm, formatter) : null
-        );
+        ).withSchedulingSemantics(com.example.scheduler.dependency.domain.DependencyNames.decode(dependsOn), misfirePolicy);
     }
 }

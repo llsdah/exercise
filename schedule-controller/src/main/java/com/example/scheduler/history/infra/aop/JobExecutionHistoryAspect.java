@@ -2,7 +2,7 @@ package com.example.scheduler.history.infra.aop;
 
 import com.example.scheduler.history.application.JobExecutionHistoryCommand;
 import com.example.scheduler.history.application.JobExecutionHistoryService;
-import com.example.scheduler.history.domain.ExecutionStatus;
+import com.example.scheduler.execution.domain.ExecutionStatus;
 import com.example.scheduler.job.application.model.JobExecution;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

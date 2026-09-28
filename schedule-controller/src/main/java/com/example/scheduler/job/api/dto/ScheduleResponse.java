@@ -34,6 +34,8 @@ public class ScheduleResponse { // [변경] UpcomingJobDto -> ScheduleResponse
     private String jobClass;
     private String description;
     private String command;         // 실행 명령어
+    private java.util.List<String> dependsOn;
+    private com.example.scheduler.job.domain.MisfirePolicy misfirePolicy;
     private String parameters;      // 파라미터
 
     public static ScheduleResponse from(Schedule domain) {
@@ -48,7 +50,7 @@ public class ScheduleResponse { // [변경] UpcomingJobDto -> ScheduleResponse
                 .jobClass(domain.getJobClass())
                 .description(domain.getDescription())
                 .command(domain.getCommand())
-                .parameters(domain.getParameters())
+                .parameters(domain.getParameters()).dependsOn(domain.getDependsOn()).misfirePolicy(domain.getMisfirePolicy())
                 .build();
     }
 

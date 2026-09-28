@@ -1,6 +1,6 @@
 package com.example.scheduler.job.application.model;
 
-import com.example.scheduler.history.domain.ExecutionStatus;
+import com.example.scheduler.execution.domain.ExecutionStatus;
 import lombok.Getter;
 
 import java.time.LocalDateTime;

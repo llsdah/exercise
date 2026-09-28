@@ -1,7 +1,6 @@
 package com.example.scheduler.history.application;
 
-import com.example.scheduler.history.api.dto.JobExecutionHistoryResponse;
-import com.example.scheduler.history.domain.JobExecutionHistory;
+import com.example.scheduler.execution.domain.LogicalExecution;
 import com.example.scheduler.history.domain.JobExecutionHistoryRepository;
 
 import com.example.scheduler.history.domain.JobExecutionHistorySearchCondition;
@@ -24,7 +23,7 @@ public class JobExecutionHistoryReadService {
      * 이력 통합 검색
      * - TenantId, Group, Name, Status, Period(From~To) 조건을 조합하여 조회
      */
-    public Page<JobExecutionHistory> searchHistories(JobExecutionHistorySearchCondition condition, Pageable pageable) {
+    public Page<LogicalExecution> searchHistories(JobExecutionHistorySearchCondition condition, Pageable pageable) {
 
         return repository.findByConditions(condition, pageable);
 

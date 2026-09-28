@@ -61,7 +61,8 @@ public class JobCommandMapper {
                 req.scheduleStartTime(),
                 req.scheduleEndTime(),
 
-                req.regUserId()
+                req.regUserId(), req.dependsOn() == null ? null : req.dependsOn().stream()
+                        .map(name -> name == null ? null : name.toLowerCase()).toList(), req.misfirePolicy()
         );
     }
 

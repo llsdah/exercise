@@ -5,9 +5,9 @@ import com.example.scheduler.global.api.ResponseService;
 import com.example.scheduler.global.api.code.SuccessCode;
 import com.example.scheduler.history.api.dto.JobExecutionHistoryResponse;
 import com.example.scheduler.history.application.JobExecutionHistoryReadService;
-import com.example.scheduler.history.domain.JobExecutionHistory;
+import com.example.scheduler.execution.domain.LogicalExecution;
 import com.example.scheduler.history.domain.JobExecutionHistorySearchCondition;
-import com.example.scheduler.history.domain.ExecutionStatus;
+import com.example.scheduler.execution.domain.ExecutionStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -45,7 +45,7 @@ public class JobExecutionHistoryController {
                 tenantId, scheduleGroup, scheduleName, fireInstanceId, status, from, to
         );
 
-        Page<JobExecutionHistory> historyPage = jobExecutionHistoryReadService.searchHistories(condition, pageable);
+        Page<LogicalExecution> historyPage = jobExecutionHistoryReadService.searchHistories(condition, pageable);
 
         Page<JobExecutionHistoryResponse> result = historyPage.map(JobExecutionHistoryResponse::from);
         return ResponseEntity.ok(

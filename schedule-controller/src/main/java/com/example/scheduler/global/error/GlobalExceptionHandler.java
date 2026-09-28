@@ -16,6 +16,11 @@ public class GlobalExceptionHandler {
 
     private final MessageUtils messageUtils;
 
+    @ExceptionHandler(com.example.scheduler.dependency.domain.InvalidDependencyException.class)
+    public ResponseEntity<ApiResponse<Void>> invalidDependency(com.example.scheduler.dependency.domain.InvalidDependencyException failure) {
+        return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_DEPENDENCY", failure.getMessage()));
+    }
+
     /**
      * [비즈니스 예외 처리]
      * 개발자가 의도적으로 throw new BusinessException(...) 한 경우

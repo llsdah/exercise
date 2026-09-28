@@ -1,0 +1,104 @@
+spring:
+  application:
+    name: scheduler-poc
+  messages:
+    basename: messages
+    encoding: UTF-8
+
+  # 데이터소스 설정
+  datasource:
+    url: jdbc:h2:mem:scheduler;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=5000
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # JPA 설정
+  jpa:
+    defer-datasource-initialization: true # 초기 데이터 로딩 시 필요할 수 있음
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+
+  # H2 Console 설정
+  h2:
+    console:
+      enabled: false
+      path: /h2-console
+      settings:
+        web-allow-others: true # 외부 접속 허용 (필요시)
+
+  # Quartz 설정
+  quartz:
+    scheduler-name: ${QUARTZ_SCHEDULER_NAME:quartzScheduler}
+    job-store-type: jdbc
+    jdbc:
+      # 공유 스키마는 배포 전에 한 번만 생성한다. 노드 기동 시 초기화 금지.
+      initialize-schema: ALWAYS
+    properties:
+      org:
+        quartz:
+          threadPool:
+            threadCount: 20  # 동시 실행 Job이 많다면 상향 조정
+          scheduler:
+            instanceId: AUTO
+            batchTriggerAcquisitionMaxCount: 5 # 한 번에 5개씩 가져옴
+          jobStore:
+            isClustered: true
+            clusterCheckinInterval: 10000
+            acquireTriggersWithinLock: true
+            tablePrefix: QRTZ_ # Quartz 메타 테이블 prefix
+
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Seoul
+
+server:
+  port: ${SERVER_PORT:8093}
+
+management:
+  endpoint:
+    health:
+      show-details: always  # 추가
+    shutdown:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: shutdown, health, info, metrics
+
+app:
+  node-capacity:
+    max-concurrent-processes: 2
+    cpu-threshold: 0.85 # System CPU load, 0..1; equality blocks admission
+    min-available-memory-bytes: 536870912 # 512 MiB of free physical memory
+    waiting-dispatch-enabled: true
+    dispatch-interval-ms: 1000
+  retry:
+    enabled: true
+    max-attempts: 3 # Initial attempt included
+    backoff: 30s
+    workers: 2
+    sweep-interval-ms: 5000
+  execution:
+    node-id: ${BATCH_NODE_ID:}
+    allow-ephemeral-node-id: true
+    lease-ttl: 30s
+    heartbeat-interval: 10s
+    sweep-interval-ms: 5000
+  jpa:
+    table-prefix: MY_             # 애플리케이션 JPA 테이블 prefix
+  scheduler:
+    use-meta-table: true          # Job 등록/삭제 시 DB 사용
+    check-meta-on-execute: true   # 실행 시 DB 조회
+    max-skip-count: 5             # Skip 최대 개수
+    timeout-seconds: 3600         # 타임아웃 (1시간)
+  enc:
+    test: ENC(mRT40urKn7WpK74YyRDTCJSUt3C1zbnPZ1v8jUDVqB0=)
+
+logging:
+  pattern:
+    #level: "%5p executionId=%X{executionId:-} attemptId=%X{attemptId:-} triggerNodeId=%X{triggerNodeId:-} workerNodeId=%X{workerNodeId:-} leaseToken=%X{leaseToken:-} pid=%X{pid:-}"
+    level: "%5p "
+  level:
+    org.hibernate.SQL: OFF
+    org.hibernate.orm.jdbc.bind: OFF

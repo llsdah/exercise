@@ -1,5 +1,6 @@
 package com.example.scheduler.job.application;
 
+import com.example.scheduler.dependency.infra.persistence.DependencyRegistrationGuard;
 import com.example.scheduler.global.api.code.ErrorCode;
 import com.example.scheduler.global.config.SchedulerProperties;
 import com.example.scheduler.global.error.BusinessException;
@@ -7,7 +8,7 @@ import com.example.scheduler.job.application.model.JobCommand;
 import com.example.scheduler.job.application.port.JobScheduleCommand;
 import com.example.scheduler.job.application.port.JobScheduleReader;
 import com.example.scheduler.job.domain.*;
-import com.example.scheduler.history.application.HistoryExecutionCoordinator;
+import com.example.scheduler.execution.application.ExecutionCoordinator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -25,8 +26,9 @@ public class JobService {
     private final JobRepository jobRepository;      // Domain Repository (Interface)
     private final JobScheduleCommand jobScheduleCommand;        // Quartz Scheduler Wrapper
     private final JobScheduleReader jobScheduleReader;        // Quartz Scheduler Wrapper
-    private final HistoryExecutionCoordinator executionCoordinator;
+    private final ExecutionCoordinator executionCoordinator;
     private final SchedulerProperties properties;
+    private final DependencyRegistrationGuard dependencyGuard;
 
     /**
      * [작업 등록/수정]
@@ -36,6 +38,9 @@ public class JobService {
     public LocalDateTime registerOrUpdateJob(JobCommand command) {
         log.debug("Processing Job Command: [Tenant: {}] {}.{}", command.tenantId(), command.jobGroup(), command.jobName());
 
+        if (!properties.useMetaTable() && command.dependsOn() != null && !command.dependsOn().isEmpty())
+            throw new com.example.scheduler.dependency.domain.InvalidDependencyException("dependsOn requires the durable Job metadata table");
+        if (properties.useMetaTable()) dependencyGuard.lock();
         Job jobToRegister;
 
         if (properties.useMetaTable()) {
@@ -77,6 +82,9 @@ public class JobService {
                     });
 
             // 2. DB 저장 (Domain -> Entity 변환은 Repository 구현체 내부에서 수행)
+            jobToRegister.withSchedulingSemantics(command.dependsOn() == null ? jobToRegister.getDependsOn() : command.dependsOn(),
+                    command.misfirePolicy() == null ? jobToRegister.getMisfirePolicy() : command.misfirePolicy());
+            dependencyGuard.validate(command.tenantId(),command.jobGroup(),command.jobName(),jobToRegister.getScheduleType(),jobToRegister.getDependsOn());
             jobToRegister = jobRepository.save(jobToRegister);
 
         } else {
@@ -98,6 +106,8 @@ public class JobService {
             );
         }
 
+        if (!properties.useMetaTable()) jobToRegister.withSchedulingSemantics(command.dependsOn(), command.misfirePolicy());
+
         // 3. 스케줄러 엔진에 등록 (Quartz)
         // 주의: Quartz JobKey도 TenantId를 포함하도록 설계되었는지 확인 필요 (보통 Name에 TenantId를 prefix로 붙임)
         LocalDateTime nextFireTime = jobScheduleCommand.register(jobToRegister);
@@ -112,6 +122,10 @@ public class JobService {
      */
     @Transactional
     public void deleteJob(String tenantId, String jobGroup, String jobName) {
+        if (properties.useMetaTable()) {
+            dependencyGuard.lock();
+            dependencyGuard.validateDeletion(tenantId, jobGroup, jobName);
+        }
         // 소유 노드가 처리할 종료 요청을 공유 DB에 기록한다.
         executionCoordinator.requestCancellation(tenantId, jobGroup, jobName);
 

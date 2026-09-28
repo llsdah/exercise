@@ -1,7 +1,7 @@
 package com.example.scheduler.history.api.dto;
 
-import com.example.scheduler.history.domain.ExecutionStatus;
-import com.example.scheduler.history.domain.JobExecutionHistory;
+import com.example.scheduler.execution.domain.ExecutionStatus;
+import com.example.scheduler.execution.domain.LogicalExecution;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.time.Duration;
@@ -31,7 +31,7 @@ public record JobExecutionHistoryResponse(
         String fireInstanceId
 ) {
 
-    public static JobExecutionHistoryResponse from(JobExecutionHistory history) {
+    public static JobExecutionHistoryResponse from(LogicalExecution history) {
         // 도메인의 duration 우선 사용, 없으면 계산
         Long duration = history.getDuration();
         if (duration == null && history.getStartTime() != null && history.getEndTime() != null) {

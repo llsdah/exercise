@@ -1,8 +1,10 @@
 package com.example.scheduler.resource.application;
 
+import com.example.scheduler.resource.application.capacity.NodeExecutionCapacity;
+
 import com.example.scheduler.global.config.ExecutionProperties;
 import com.example.scheduler.global.config.RetryProperties;
-import com.example.scheduler.history.domain.HistoryExecutionRepository;
+import com.example.scheduler.execution.application.port.ExecutionRepository;
 import com.example.scheduler.retry.domain.RetryCandidate;
 import com.example.scheduler.retry.domain.RetryExecutor;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +15,7 @@ import java.util.concurrent.Executor;
 @Service
 @RequiredArgsConstructor
 public class WaitingExecutionService {
-    private final HistoryExecutionRepository executions;
+    private final ExecutionRepository executions;
     private final ExecutionProperties node;
     private final RetryProperties retry;
     private final RetryExecutor executor;

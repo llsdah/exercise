@@ -1,14 +1,15 @@
 package com.example.scheduler.execution;
 
-import com.example.scheduler.history.application.HistoryExecutionCoordinator;
-import com.example.scheduler.history.domain.HistoryExecutionRequest;
-import com.example.scheduler.history.domain.HistoryExecutionRepository;
-import com.example.scheduler.history.domain.ExecutionStatus;
+
 import com.example.scheduler.attempt.domain.AttemptState;
+import com.example.scheduler.execution.application.ExecutionCoordinator;
+import com.example.scheduler.execution.application.port.ExecutionRepository;
+import com.example.scheduler.execution.domain.ExecutionRequest;
+import com.example.scheduler.execution.domain.ExecutionStatus;
+import com.example.scheduler.execution.infra.persistence.JobExecutionHistoryEntity;
+import com.example.scheduler.execution.infra.persistence.JobExecutionHistoryJpaRepository;
 import com.example.scheduler.lease.domain.LeaseClaim;
 import com.example.scheduler.lease.domain.StaleExecutorException;
-import com.example.scheduler.history.infra.persistent.JobExecutionHistoryEntity;
-import com.example.scheduler.history.infra.persistent.JobExecutionHistoryJpaRepository;
 import com.example.scheduler.lease.infra.persistence.ExecutionLeaseEntity;
 import com.example.scheduler.lease.infra.watchdog.ExecutionLeaseMonitor;
 import com.example.scheduler.global.config.ExecutionProperties;
@@ -47,9 +48,9 @@ import static org.mockito.Mockito.*;
 @SpringBootTest(classes = SchedulerApplication.class, webEnvironment = SpringBootTest.WebEnvironment.NONE,
         properties = "spring.config.location=classpath:execution-test.yml")
 class ExecutionSafetyIntegrationTest {
-    @Autowired HistoryExecutionCoordinator nodeA;
+    @Autowired ExecutionCoordinator nodeA;
     @Autowired JobExecutionHistoryJpaRepository executions;
-    @Autowired HistoryExecutionRepository executionStore;
+    @Autowired ExecutionRepository executionStore;
     @Autowired ExecutionLeaseMonitor monitor;
     @Autowired ExecutionProperties properties;
     @Autowired JobProcessManager processes;
@@ -61,12 +62,12 @@ class ExecutionSafetyIntegrationTest {
     @Autowired com.example.scheduler.job.application.JobExecutionRecorder recorder;
     @Autowired com.example.scheduler.history.application.JobExecutionHistoryReadService historyReader;
     @PersistenceContext EntityManager em;
-    HistoryExecutionCoordinator nodeB;
+    ExecutionCoordinator nodeB;
     @TempDir Path faultFiles;
 
     @BeforeEach
     void createSecondNode() {
-        nodeB = new HistoryExecutionCoordinator(executionStore,
+        nodeB = new ExecutionCoordinator(executionStore,
                 new ExecutionProperties("node-b", Duration.ofSeconds(30), Duration.ofSeconds(5)));
         factory.autowireBean(nodeB);
     }
@@ -280,12 +281,12 @@ class ExecutionSafetyIntegrationTest {
 
     @Test
     void dbFailureBeforeAcquisitionStartsNoProcess() {
-        HistoryExecutionCoordinator unavailable = mock(HistoryExecutionCoordinator.class);
+        ExecutionCoordinator unavailable = mock(ExecutionCoordinator.class);
         when(unavailable.ensureExecution(any()))
                 .thenThrow(new IllegalStateException("injected DB outage"));
         JobProcessManager isolated = mock(JobProcessManager.class);
         var job = new ShellCommandJob(isolated, unavailable, monitor,
-                new SchedulerProperties(true, true, 5, 60L));
+                new SchedulerProperties(true, true, 5, 60L), null);
         assertThatThrownBy(() -> job.execute(context("echo should-not-run", UUID.randomUUID().toString())))
                 .isInstanceOf(JobExecutionException.class);
         verifyNoInteractions(isolated);
@@ -293,7 +294,7 @@ class ExecutionSafetyIntegrationTest {
 
     @Test
     void dbFailureAfterStartStopsProcessAndRecoveryMarksUnknown() throws Exception {
-        HistoryExecutionCoordinator failing = spy(nodeA);
+        ExecutionCoordinator failing = spy(nodeA);
         doThrow(new IllegalStateException("injected DB outage after Process.start"))
                 .when(failing).started(any(), anyLong(), any());
         doThrow(new IllegalStateException("DB still unavailable")).when(failing).finish(any(), any(), any(), any());
@@ -322,7 +323,7 @@ class ExecutionSafetyIntegrationTest {
     @Test
     void backgroundHeartbeatsKeepLeaseAliveBeyondInitialTtl() throws Exception {
         var shortProperties = new ExecutionProperties("short-ttl-node", Duration.ofSeconds(2), Duration.ofMillis(200));
-        var shortNode = new HistoryExecutionCoordinator(executionStore, shortProperties);
+        var shortNode = new ExecutionCoordinator(executionStore, shortProperties);
         factory.autowireBean(shortNode);
         var shortMonitor = new ExecutionLeaseMonitor(shortNode, shortProperties);
         try {
@@ -341,7 +342,7 @@ class ExecutionSafetyIntegrationTest {
 
     @Test
     void lostBackgroundHeartbeatTerminatesOwnedProcessWithoutRetry() throws Exception {
-        HistoryExecutionCoordinator failing = spy(nodeA);
+        ExecutionCoordinator failing = spy(nodeA);
         var count = new java.util.concurrent.atomic.AtomicInteger();
         doAnswer(invocation -> {
             if (count.incrementAndGet() > 1) throw new IllegalStateException("injected heartbeat DB outage");
@@ -531,7 +532,7 @@ class ExecutionSafetyIntegrationTest {
             // Send the API service call to the JVM that owns no process for this execution.
             Files.writeString(faultFiles.resolve(otherNode + ".cancel"), waiting.getKey().getName());
             awaitCluster(() -> Files.exists(faultFiles.resolve(otherNode + ".accepted")), 10);
-            awaitCluster(() -> executions.findById(execution.getId()).orElseThrow().getStatus() == ExecutionStatus.UNKNOWN, 15);
+            awaitCluster(() -> executions.findById(execution.getId()).orElseThrow().getStatus() == ExecutionStatus.CANCELLED, 15);
             assertThat(ProcessHandle.of(attempt.getPid()).map(ProcessHandle::isAlive).orElse(false)).isFalse();
             assertThat(nodeA.attempts(execution.getId())).hasSize(1);
             JobDetail crashing = clusterJob(waitCommand());
@@ -606,8 +607,8 @@ class ExecutionSafetyIntegrationTest {
         fail("Cluster condition timed out: " + logs);
     }
 
-    String ensure(HistoryExecutionCoordinator node, String name) {
-        return node.ensureExecution(new HistoryExecutionRequest("test", "safety", name, "scheduled:1000", Instant.ofEpochMilli(1000), null, "CRON", "SHELL", "0 * * * * ?", "echo test", null));
+    String ensure(ExecutionCoordinator node, String name) {
+        return node.ensureExecution(new ExecutionRequest("test", "safety", name, "scheduled:1000", Instant.ofEpochMilli(1000), null, "CRON", "SHELL", "0 * * * * ?", "echo test", null));
     }
 
     void expire(String id) { setExpiry(id, Instant.EPOCH); }
@@ -619,9 +620,9 @@ class ExecutionSafetyIntegrationTest {
         });
     }
 
-    ShellCommandJob shell(HistoryExecutionCoordinator coordinator, ExecutionLeaseMonitor leaseMonitor,
+    ShellCommandJob shell(ExecutionCoordinator coordinator, ExecutionLeaseMonitor leaseMonitor,
                           ApplicationEventPublisher publisher, long timeout) {
-        return new ShellCommandJob(processes, coordinator, leaseMonitor, new SchedulerProperties(true, true, 5, timeout));
+        return new ShellCommandJob(processes, coordinator, leaseMonitor, new SchedulerProperties(true, true, 5, timeout), null);
     }
 
     JobExecutionContext context(String command, String name) {

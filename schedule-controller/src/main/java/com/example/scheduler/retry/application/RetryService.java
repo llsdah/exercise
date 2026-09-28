@@ -1,8 +1,8 @@
 package com.example.scheduler.retry.application;
 import com.example.scheduler.global.config.ExecutionProperties;
 import com.example.scheduler.global.config.RetryProperties;
-import com.example.scheduler.history.domain.ExecutionStatus;
-import com.example.scheduler.history.domain.HistoryExecutionRepository;
+import com.example.scheduler.execution.domain.ExecutionStatus;
+import com.example.scheduler.execution.application.port.ExecutionRepository;
 import com.example.scheduler.retry.domain.*;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
@@ -11,13 +11,13 @@ import java.util.List;
 @Service
 @EnableConfigurationProperties(RetryProperties.class)
 public class RetryService {
-    private final HistoryExecutionRepository executions;
+    private final ExecutionRepository executions;
     private final ExecutionProperties node;
     private final RetryProperties policy;
     private final RetryExecutor executor;
-    private final com.example.scheduler.resource.application.NodeExecutionCapacity capacity;
-    public RetryService(HistoryExecutionRepository executions, ExecutionProperties node,
-                        RetryProperties policy, RetryExecutor executor, com.example.scheduler.resource.application.NodeExecutionCapacity capacity) {
+    private final com.example.scheduler.resource.application.capacity.NodeExecutionCapacity capacity;
+    public RetryService(ExecutionRepository executions, ExecutionProperties node,
+                        RetryProperties policy, RetryExecutor executor, com.example.scheduler.resource.application.capacity.NodeExecutionCapacity capacity) {
         this.executions = executions;
         this.node = node;
         this.policy = policy;

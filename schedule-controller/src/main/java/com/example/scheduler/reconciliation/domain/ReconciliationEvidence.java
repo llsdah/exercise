@@ -1,5 +1,5 @@
 package com.example.scheduler.reconciliation.domain;
-import com.example.scheduler.history.domain.ExecutionStatus;
+import com.example.scheduler.execution.domain.ExecutionStatus;
 import java.util.Objects;
 /** Process observations only; business outcomes are outside the platform's responsibility. */
 public record ReconciliationEvidence(ProcessStart processStart, boolean processTerminated, Integer exitCode, String reason) {
